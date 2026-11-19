@@ -113,6 +113,9 @@ details.fold[open]>summary .arrow{transform:rotate(90deg)}
 .chip.today{background:var(--navy);color:#fff}
 .chip.bell{background:#FFF0E0;color:#C25E00;font-weight:800}
 .chip.bell.rang{background:var(--red);color:#fff}
+.free-in{position:relative}.free-in .input{padding-right:44px}
+.clr{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;color:#97A1AE;font-size:20px}
+.cand{font-size:12px;color:var(--sub);font-weight:700;margin:9px 0 6px}
 .alert-row{display:flex;gap:8px}.alert-row .input{flex:1;min-width:0}
 .al-item{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;border-left:4px solid var(--memo)}
 .al-btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
@@ -468,6 +471,9 @@ function optList(items, val, cls = 'opt') {
   const list = [...items];
   if (val && !list.includes(val)) list.push(val);
   return list.map(x => `<button type="button" class="${cls} ${x === val ? 'on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('');
+}
+function nameChips(id, list, val) {
+  return list.length ? `<div class="cand">候補（タップで入力）</div><div class="opts small" id="${id}">${list.map(x => `<button type="button" class="opt ${x === val ? 'on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : `<div class="opts small" id="${id}"></div>`;
 }
 function bindPick(container, onPick, allowNone = false) {
   container.addEventListener('click', e => {
@@ -832,7 +838,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
   type = t ? t.type : type;
   const isWork = type === 'work';
   const cats = isWork ? S.workCats : S.privCats;
-  const v = t ? { ...t } : newTask({ type, alertAt: prefill.alertAt || '', content: prefill.content || '', category: prefill.category || cats[0] || '', assignee: isWork ? (prefill.assignee || S.assignees[0] || '') : '' });
+  const v = t ? { ...t } : newTask({ type, alertAt: prefill.alertAt || '', content: prefill.content || '', category: prefill.category || cats[0] || '', assignee: isWork ? (prefill.assignee || '') : '' });
   const status0 = t ? t.status : '未完了';
   let status = cont ? '継続' : status0;
   const contRequired = () => cont || status0 !== '継続';
@@ -852,10 +858,12 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
       <div class="field"><div class="label">内容<span class="req">必須</span></div>
         <textarea class="textarea" id="fContent" rows="3" placeholder="${isWork ? '例）見積書を確認して返信する' : '例）牛乳を買う'}">${esc(v.content)}</textarea><div class="err" id="eContent"></div></div>
       <div class="field"><div class="label">分類</div><div class="opts" id="fCat">${optList(cats, v.category)}</div></div>
-      ${isWork ? `<div class="field"><div class="label">担当者</div><div class="opts" id="fAsgOpts">${optList(S.assignees, v.assignee)}</div>
-        <input class="input" id="fAsg" style="margin-top:8px" placeholder="上にない場合は入力" value="${esc(v.assignee)}"></div>
-      <div class="field"><div class="label">指示先<span class="hint">誰に指示したか</span></div><div class="opts" id="fInsOpts">${optList(S.assignees.filter(a => a !== '自分'), v.instructedTo || '')}</div>
-        <input class="input" id="fIns" style="margin-top:8px" placeholder="上にない場合は入力" value="${esc(v.instructedTo || '')}"></div>
+      ${isWork ? `<div class="field"><div class="label">担当者<span class="hint">自由に入力できます</span></div>
+        <div class="free-in"><input class="input" id="fAsg" placeholder="担当者名を入力（例：田中、営業部）" value="${esc(v.assignee)}" autocomplete="off"><button type="button" class="clr" data-clr="fAsg" aria-label="消去">×</button></div>
+        ${nameChips('fAsgOpts', S.assignees, v.assignee)}</div>
+      <div class="field"><div class="label">指示先<span class="hint">誰に指示したか・自由入力</span></div>
+        <div class="free-in"><input class="input" id="fIns" placeholder="指示した相手を入力" value="${esc(v.instructedTo || '')}" autocomplete="off"><button type="button" class="clr" data-clr="fIns" aria-label="消去">×</button></div>
+        ${nameChips('fInsOpts', S.assignees.filter(a => a !== '自分'), v.instructedTo || '')}</div>
       <div class="field"><div class="label">指示日</div><input type="date" class="input" id="fInsDate" value="${v.instructedAt || ''}">
         <div class="opts quick" id="fInsQ"><button type="button" class="opt" data-d="0">今日</button><button type="button" class="opt" data-d="-1">昨日</button><button type="button" class="opt" data-d="">クリア</button></div></div>` : ''}
       <div class="field" id="dueField"><div class="label">期日<span class="hint">${isWork ? '' : '任意'}</span></div>
@@ -876,6 +884,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
   bindPick($('#fCat', s));
   bindPick($('#fPrio', s));
   if (isWork) {
+    $$('[data-clr]', s).forEach(b => b.onclick = () => { const i = $('#' + b.dataset.clr, s); i.value = ''; i.dispatchEvent(new Event('input')); i.focus(); });
     const asg = $('#fAsg', s), ao = $('#fAsgOpts', s);
     bindPick(ao, val => asg.value = val, true);
     const ins = $('#fIns', s), io = $('#fInsOpts', s), insD = $('#fInsDate', s);
