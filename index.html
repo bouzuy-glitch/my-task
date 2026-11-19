@@ -358,6 +358,8 @@ const DEFAULT_SETTINGS = {
   welcomed: false,
   lastBackup: null,
   alertTime: '09:00',
+  calMode: 'confirm',
+  calShortcut: 'MYTASKカレンダー',
 };
 let DB;
 function load() {
@@ -1244,6 +1246,13 @@ function openSettings() {
           <button class="row act" id="nTest"><span>テスト通知を送る</span><span class="v">›</span></button>
         </div>
         <p class="help">【アラート】仕事・プライベート・メモごとに日時を指定できます。アプリを開いている間は指定時刻ちょうどに、閉じている間は次にアプリを開いたときにお知らせします。アプリを閉じていても確実に鳴らしたい場合は、詳細画面の「iPhoneのカレンダーに登録」を使ってください。<br>【期日通知】アプリを開いたとき・画面に戻ったときに、明日／今日が期日のタスク（継続後の新しい期日を含む）をまとめて通知します。iPhoneでは Safari の共有ボタン →「ホーム画面に追加」で追加したアプリから通知を許可してください（iOS 16.4以降）。通知が使えない環境でも、ホーム画面で期限超過・今日・7日以内を確認できます。</p>
+        <div class="bt-title">iPhoneのカレンダー登録</div>
+        <div class="box">
+          <div class="row" style="display:block"><div class="seg" id="calMode">${optList(['確認して登録', '自動登録（ショートカット）'], S.calMode === 'shortcut' ? '自動登録（ショートカット）' : '確認して登録', '')}</div></div>
+          ${S.calMode === 'shortcut' ? `<div class="row"><span>ショートカット名</span><input class="input" id="calName" value="${esc(S.calShortcut)}" style="width:190px;padding:7px 10px"></div>
+          <button class="row act" id="calTest"><span>テスト登録（5分後の予定）</span><span class="v">›</span></button>` : ''}
+        </div>
+        <p class="help">「ショートカットで自動登録」にすると、ボタンを押すだけでiPhoneの「ショートカット」アプリが動き、確認なしでカレンダーに登録されます（最初に一度だけショートカットの作成が必要です）。登録後は画面左上の「◀ MY TASK」で戻れます。</p>
 
         <div class="bt-title">データ管理</div>
         <div class="box">
@@ -1259,7 +1268,7 @@ function openSettings() {
           ${hasSample ? `<button class="row act danger" id="dSample"><span>サンプルデータを削除</span></button>` : ''}
           <button class="row act danger" id="dReset"><span>すべてのデータを削除</span></button>
         </div>
-        <p class="help" style="text-align:center">MY TASK v1.3 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
+        <p class="help" style="text-align:center">MY TASK v1.4 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
       </div>`;
     const s = entry.sheet;
     $('.sh-body', s).scrollTop = scrollTop;
@@ -1275,6 +1284,9 @@ function openSettings() {
     };
     $('#nPre', s).onchange = e => { S.notify.dayBefore = e.target.checked; save(); };
     $('#nDay', s).onchange = e => { S.notify.dayOf = e.target.checked; save(); };
+    bindPick($('#calMode', s), v => { S.calMode = v === '自動登録（ショートカット）' ? 'shortcut' : 'confirm'; save(); draw(); });
+    if ($('#calName', s)) $('#calName', s).onchange = e => { S.calShortcut = e.target.value.trim() || 'MYTASKカレンダー'; save(); };
+    if ($('#calTest', s)) $('#calTest', s).onclick = () => { const d = new Date(Date.now() + 5 * 60e3); addToCalendar({ id: 'test', content: 'MY TASK テスト登録', alertAt: `${ymd(d)}T${hm(d)}` }, 'test'); };
     $('#aTime', s).onchange = e => { if (e.target.value) { S.alertTime = e.target.value; save(); } };
     $('#nTest', s).onclick = async () => {
       if (!('Notification' in window)) { toast('この環境では通知を利用できません'); return; }
@@ -1444,7 +1456,7 @@ function bellChip(x) {
   const rang = x.alertFired;
   return `<span class="chip bell ${rang ? 'rang' : ''}">⏰ ${fmtAlert(x.alertAt)}${rang ? ' 通知済み' : ''}</span>`;
 }
-const calBtn = () => `<div class="box"><button class="row act" id="dCal"><span>📅 iPhoneのカレンダーに登録<br><span class="cal-hint">アプリを閉じていても指定時刻に通知されます</span></span><span class="v">›</span></button></div>`;
+const calBtn = () => `<div class="box"><button class="row act" id="dCal"><span>📅 iPhoneのカレンダーに登録<br><span class="cal-hint">${DB.settings.calMode === 'shortcut' ? 'タップで自動登録（ショートカット）' : 'アプリを閉じていても指定時刻に通知されます'}</span></span><span class="v">›</span></button></div>`;
 function alertItems() {
   return [...DB.tasks.filter(t => !isDone(t)).map(x => ({ kind: 'task', x })), ...DB.memos.map(x => ({ kind: 'memo', x }))].filter(o => o.x.alertAt);
 }
@@ -1502,6 +1514,14 @@ function showAlertPopup() {
 }
 function addToCalendar(x, kind) {
   if (!x.alertAt) return;
+  if (DB.settings.calMode === 'shortcut') {
+    const label = kind === 'memo' ? 'メモ' : kind === 'test' ? 'テスト' : TYPE_LABEL[x.type];
+    const [d, t] = x.alertAt.split('T');
+    const text = `[${label}] ${x.content.replace(/\s*\n\s*/g, ' ')}\n${d.replace(/-/g, '/')} ${t}`;
+    location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(DB.settings.calShortcut || 'MYTASKカレンダー')}&input=text&text=${encodeURIComponent(text)}`;
+    toast('ショートカットでカレンダーに登録します');
+    return;
+  }
   const st = parseDT(x.alertAt), en = new Date(st.getTime() + 15 * 60e3);
   const f = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
   const ie = v => String(v || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
