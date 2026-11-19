@@ -171,6 +171,7 @@ select.sort{height:44px;border-radius:12px;border:1px solid var(--line);backgrou
 .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--text)}
 .btn.danger{background:var(--red);color:#fff}
 .btn.danger-ghost{background:#fff;color:var(--red);border:1px solid #F3C9C5}
+.edit-wide{flex:1 0 100%!important;height:46px!important}
 .btn.sm{height:40px;font-size:14.5px;flex:0 0 auto;padding:0 14px;border-radius:11px}
 .add-opt{display:flex;align-items:center;gap:14px;width:100%;background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;text-align:left;box-shadow:0 1px 2px rgba(16,24,40,.06)}
 .add-opt .ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;color:#fff;flex:0 0 auto}
@@ -796,7 +797,7 @@ function openTaskDetail(id) {
       ...(done ? [['完了日', fmtDateFull(t.completedAt)]] : []),
     ];
     const memo = t.fromMemoId && getMemo(t.fromMemoId);
-    entry.sheet.innerHTML = head('<button class="hbtn l" data-close>閉じる</button>', TYPE_LABEL[t.type] + 'のタスク', '<button class="hbtn r" id="dEdit">編集</button>') + `
+    entry.sheet.innerHTML = head('<button class="hbtn l" data-close>閉じる</button>', TYPE_LABEL[t.type] + 'のタスク', '<button class="hbtn r" id="dEdit">修正</button>') + `
       <div class="sh-body">
         <div class="d-tags"><span class="chip ${isWork ? 'work' : 'priv'}">${TYPE_LABEL[t.type]}</span>${status}${ov ? '<span class="chip red">期限超過</span>' : ''}</div>
         <div class="d-content">${esc(t.content)}</div>
@@ -808,11 +809,11 @@ function openTaskDetail(id) {
         ${memo ? `<button class="linkbtn" data-memo="${memo.id}">元の思いつきメモを見る ›</button>` : ''}
         <button class="del-link" id="dDel">このタスクを削除</button>
       </div>
-      <div class="sh-foot">${done
+      <div class="sh-foot" style="flex-wrap:wrap"><button class="btn ghost edit-wide" id="dEdit2">✏️ 内容を修正する</button>${done
         ? `<button class="btn ghost" id="dReopen">未完了に戻す</button>`
         : `${isWork ? `<button class="btn amber" id="dCont">継続する</button>` : ''}<button class="btn green" id="dDone">${ICON.check}完了にする</button>`}</div>`;
     const s = entry.sheet;
-    $('#dEdit', s).onclick = () => openTaskForm({ id });
+    $('#dEdit', s).onclick = $('#dEdit2', s).onclick = () => openTaskForm({ id });
     $('#dDel', s).onclick = () => deleteTask(id, entry.wrap);
     if ($('#dReopen', s)) $('#dReopen', s).onclick = () => reopenTask(id);
     if ($('#dDone', s)) $('#dDone', s).onclick = () => { closeSheet(entry.wrap); completeTask(id); };
@@ -837,7 +838,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
   const contRequired = () => cont || status0 !== '継続';
   const acc = isWork ? 'var(--work)' : 'var(--priv)';
   const statuses = isWork ? ['未完了', '継続', '完了'] : ['未完了', '完了'];
-  const title = cont ? '継続する' : t ? '編集' : (isWork ? '仕事を追加' : 'プライベートを追加');
+  const title = cont ? '継続する' : t ? '修正' : (isWork ? '仕事を追加' : 'プライベートを追加');
 
   const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', title, '') + `
     <div class="sh-body" style="--acc:${acc}">
@@ -966,7 +967,7 @@ function openMemoDetail(id) {
     const m = getMemo(id);
     if (!m) { closeSheet(entry.wrap); return; }
     const task = m.taskId && getTask(m.taskId);
-    entry.sheet.innerHTML = head('<button class="hbtn l" data-close>閉じる</button>', '思いつきメモ', '<button class="hbtn r" id="mEdit">編集</button>') + `
+    entry.sheet.innerHTML = head('<button class="hbtn l" data-close>閉じる</button>', '思いつきメモ', '<button class="hbtn r" id="mEdit">修正</button>') + `
       <div class="sh-body">
         <div class="d-tags"><span class="chip memo">思いつきメモ</span>${m.status === 'タスク化済み' ? '<span class="chip green">タスク化済み</span>' : '<span class="chip">未整理</span>'}</div>
         <div class="d-content">${esc(m.content)}</div>
@@ -981,9 +982,9 @@ function openMemoDetail(id) {
         ${task ? `<button class="linkbtn" data-task="${task.id}">変換したタスクを開く ›</button>` : (m.taskId ? '<div class="empty-s">変換先のタスクは削除されています</div>' : '')}
         <button class="del-link" id="mDel">このメモを削除</button>
       </div>
-      <div class="sh-foot"><button class="btn work" id="mToWork">${ICON.work}仕事のタスクにする</button><button class="btn priv" id="mToPriv">${ICON.priv}プライベートに</button></div>`;
+      <div class="sh-foot" style="flex-wrap:wrap"><button class="btn ghost edit-wide" id="mEdit2">✏️ 内容を修正する</button><button class="btn work" id="mToWork">${ICON.work}仕事のタスクにする</button><button class="btn priv" id="mToPriv">${ICON.priv}プライベートに</button></div>`;
     const s = entry.sheet;
-    $('#mEdit', s).onclick = () => openMemoForm(id);
+    $('#mEdit', s).onclick = $('#mEdit2', s).onclick = () => openMemoForm(id);
     $('#mDel', s).onclick = async () => {
       if (!await confirmDlg('メモを削除しますか？', '削除すると元に戻せません。', { okText: '削除する', danger: true })) return;
       DB.memos = DB.memos.filter(x => x.id !== id);
@@ -1001,7 +1002,7 @@ function openMemoDetail(id) {
 }
 function openMemoForm(id) {
   const S = DB.settings, m = getMemo(id); if (!m) return;
-  const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', 'メモを編集', '') + `
+  const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', 'メモを修正', '') + `
     <div class="sh-body" style="--acc:var(--memo)">
       <div class="field"><div class="label">内容<span class="req">必須</span></div><textarea class="textarea" id="mContent" rows="4">${esc(m.content)}</textarea><div class="err" id="emContent"></div></div>
       <div class="field"><div class="label">分類</div><div class="opts" id="mCat">${optList(S.memoCats, m.category)}</div></div>
