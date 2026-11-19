@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MY TASK">
+<meta name="theme-color" content="#F3F5F8">
+<title>MY TASK</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#F3F5F8; --card:#fff; --text:#1F2933; --sub:#6B7785; --line:#E3E8EE;
+  --work:#2F6BD8; --work-l:#EAF1FD;
+  --priv:#2E9A63; --priv-l:#E6F5ED;
+  --memo:#E8842C; --memo-l:#FDF1E5;
+  --done:#38A169; --done-l:#E8F6EE;
+  --red:#D9443A; --red-l:#FDECEA;
+  --amber:#B97A06; --amber-l:#FFF4D9;
+  --navy:#22303F;
+  --r:14px; --tab-h:58px;
+  --sb:env(safe-area-inset-bottom,0px); --st:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%}
+body.noscroll{overflow:hidden}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+input,textarea,select{font:inherit;font-size:16px;color:var(--text)}
+svg{display:block}
+[hidden]{display:none!important}
+
+/* ===== header / tabbar ===== */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:calc(var(--st) + 8px) 12px 6px 16px;background:rgba(243,245,248,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.tb-title{font-size:21px;font-weight:800;letter-spacing:.02em}
+.tb-actions{display:flex;gap:2px}
+.icon-btn{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#4A5563}
+.icon-btn:active{background:#E3E8EE}
+.icon-btn svg{width:23px;height:23px}
+main{padding:2px 14px calc(var(--tab-h) + var(--sb) + 96px);max-width:760px;margin:0 auto}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding-bottom:var(--sb)}
+.tabbar-in{display:flex;width:100%;max-width:760px}
+.tab{flex:1;height:var(--tab-h);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:600;color:#97A1AE;position:relative}
+.tab svg{width:24px;height:24px}
+.tab.active{color:var(--navy)}
+.tab.active[data-tab=work]{color:var(--work)}
+.tab.active[data-tab=private]{color:var(--priv)}
+.tab.active[data-tab=memo]{color:var(--memo)}
+.tab.active[data-tab=done]{color:var(--done)}
+.tab .badge{position:absolute;top:5px;left:calc(50% + 5px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;line-height:1}
+.tab .badge.memo{background:var(--memo)}
+#fab{position:fixed;right:max(16px,calc(50% - 364px));bottom:calc(var(--tab-h) + var(--sb) + 14px);z-index:25;height:56px;padding:0 22px 0 18px;border-radius:28px;background:var(--navy);color:#fff;font-size:17px;font-weight:800;box-shadow:0 6px 18px rgba(20,30,50,.28);display:flex;align-items:center;gap:6px;transition:transform .12s}
+#fab:active{transform:scale(.95)}
+#fab svg{width:22px;height:22px}
+#fab.work{background:var(--work)} #fab.private{background:var(--priv)} #fab.memo{background:var(--memo)}
+
+/* ===== home ===== */
+.hero{display:flex;align-items:baseline;gap:10px;margin:2px 2px 10px}
+.hero-d{font-size:28px;font-weight:800;letter-spacing:.01em}
+.hero-d small{font-size:18px;font-weight:700;margin-left:2px}
+.hero-y{color:var(--sub);font-size:14px;font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 6px}
+.stat{background:#fff;border-radius:12px;padding:10px 4px 8px;text-align:center;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.stat b{display:block;font-size:24px;font-weight:800;line-height:1.15}
+.stat span{font-size:11.5px;color:var(--sub);font-weight:600}
+.stat.red b{color:var(--red)} .stat.blue b{color:var(--work)} .stat.amber b{color:var(--amber)}
+.stat.zero b{color:#B8C0CA}
+.sec{margin:20px 2px 8px;display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:800;color:#344050}
+.sec .dot{width:9px;height:9px;border-radius:50%;background:var(--navy);flex:0 0 auto}
+.sec .cnt{color:var(--sub);font-weight:700;font-size:13px}
+.sec .more{margin-left:auto;font-size:13px;color:var(--work);font-weight:700}
+.dot.red{background:var(--red)} .dot.blue{background:var(--work)} .dot.amber{background:#E0A21B} .dot.gray{background:#9AA5B1} .dot.orange{background:var(--memo)} .dot.navy{background:var(--navy)} .dot.green{background:var(--done)}
+.empty-s{font-size:13.5px;color:var(--sub);padding:4px 4px 2px}
+.empty{text-align:center;color:var(--sub);padding:44px 16px;font-size:14.5px}
+.empty b{display:block;font-size:16px;color:#4A5563;margin-bottom:4px}
+details.fold>summary{list-style:none;cursor:pointer}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary .arrow{transition:transform .2s;color:var(--sub);font-size:12px}
+details.fold[open]>summary .arrow{transform:rotate(90deg)}
+.welcome{background:#fff;border-radius:16px;padding:18px;margin:10px 0}
+.welcome h3{margin:0 0 6px;font-size:17px}
+.welcome p{margin:0 0 14px;color:#4A5563;font-size:14px}
+.welcome .btns{display:flex;gap:8px}
+
+/* ===== cards ===== */
+.card{background:var(--card);border-radius:var(--r);box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.task{display:flex;align-items:flex-start;gap:4px;padding:8px 12px 10px 4px;margin-bottom:8px;border-left:4px solid var(--work);transition:opacity .22s,transform .22s;cursor:pointer}
+.task.private{border-left-color:var(--priv)}
+.task.overdue{box-shadow:0 1px 2px rgba(16,24,40,.06),inset 0 0 0 1px #F6CFCB}
+.task.completing{opacity:0;transform:translateX(40px)}
+.check{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center}
+.check span{width:26px;height:26px;border-radius:50%;border:2px solid #BFC8D3;display:grid;place-items:center;transition:.15s;background:#fff}
+.check span svg{width:16px;height:16px;color:#fff;opacity:0}
+.check:active span{transform:scale(.9)}
+.task.done .check span,.check.checked span{background:var(--done);border-color:var(--done)}
+.task.done .check span svg,.check.checked span svg{opacity:1}
+.card-body{flex:1;min-width:0;padding-top:10px}
+.card-title{font-size:16px;font-weight:650;word-break:break-word;line-height:1.45}
+.task.done .card-title{color:var(--sub)}
+.chips{display:flex;flex-wrap:wrap;gap:5px 5px;margin-top:6px}
+.chip{font-size:12px;line-height:1;padding:5px 8px;border-radius:999px;background:#EEF1F5;color:#4A5563;white-space:nowrap;font-weight:600}
+.chip.red{background:var(--red-l);color:var(--red);font-weight:800}
+.chip.amber{background:var(--amber-l);color:var(--amber);font-weight:800}
+.chip.work{background:var(--work-l);color:var(--work)}
+.chip.priv{background:var(--priv-l);color:var(--priv)}
+.chip.memo{background:var(--memo-l);color:#C46A17}
+.chip.green{background:var(--done-l);color:var(--done)}
+.chip.hi{background:#FDE8E4;color:#C2410C}
+.chip.lo{background:#F1F3F6;color:#8A95A3}
+.chip.today{background:var(--navy);color:#fff}
+.listmeta{font-size:12.5px;color:var(--sub);margin:2px 4px 6px;font-weight:600}
+.memo-card{padding:12px 14px;margin-bottom:8px;border-left:4px solid var(--memo);cursor:pointer}
+.memo-card.converted{border-left-color:#E7C9A9}
+.memo-text{white-space:pre-wrap;word-break:break-word;font-size:15.5px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.memo-card.converted .memo-text{color:var(--sub)}
+
+/* ===== list tools ===== */
+.fbar{display:flex;gap:6px;overflow-x:auto;margin:0 -14px;padding:2px 14px 10px;scrollbar-width:none}
+.fbar::-webkit-scrollbar{display:none}
+.fchip{flex:0 0 auto;height:36px;padding:0 13px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:14px;color:#4A5563;font-weight:600;display:flex;align-items:center;gap:6px}
+.fchip .fc{font-size:11.5px;color:var(--sub);font-weight:700}
+.fchip.on{background:var(--acc,var(--navy));color:#fff;border-color:transparent}
+.fchip.on .fc{color:rgba(255,255,255,.8)}
+.searchrow{display:flex;gap:8px;margin-bottom:10px}
+.search{flex:1;position:relative}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#97A1AE}
+.search-in{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);padding:0 12px 0 36px;background:#fff;outline:none;-webkit-appearance:none;appearance:none}
+.search-in:focus{border-color:var(--acc,var(--work))}
+select.sort{height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;padding:0 6px;max-width:132px;font-size:16px}
+.inline-add{display:flex;gap:8px;margin-bottom:10px}
+.inline-add .input{flex:1}
+
+/* ===== quick memo ===== */
+.quick-memo{padding:12px;margin-bottom:12px;border-top:3px solid var(--memo)}
+.quick-memo .textarea{min-height:64px;border:0;background:#FAFBFC;padding:10px}
+.qm-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.qm-row .opts{flex:1}
+
+/* ===== sheets ===== */
+.sheet-wrap{position:fixed;inset:0;z-index:50}
+.sheet-bg{position:absolute;inset:0;background:rgba(15,23,35,.4);opacity:0;transition:opacity .22s}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:calc(100% - var(--st) - 20px);background:var(--bg);border-radius:20px 20px 0 0;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1);max-width:640px;margin:0 auto;box-shadow:0 -6px 30px rgba(0,0,0,.12)}
+.sheet.full{height:calc(100% - var(--st) - 10px)}
+.sheet-wrap.open .sheet-bg{opacity:1}
+.sheet-wrap.open .sheet{transform:none}
+.sh-grab{width:38px;height:5px;border-radius:3px;background:#CDD3DB;margin:7px auto 0;flex:0 0 auto}
+.sh-head{display:flex;align-items:center;justify-content:space-between;padding:4px 8px 6px;gap:6px;flex:0 0 auto}
+.sh-title{font-weight:800;font-size:17px;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbtn{min-width:76px;height:40px;color:var(--work);font-size:16px;font-weight:600;padding:0 8px}
+.hbtn.l{text-align:left}.hbtn.r{text-align:right}
+.sh-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 18px;overscroll-behavior:contain}
+.sh-foot{padding:10px 16px calc(10px + var(--sb));display:flex;gap:8px;background:var(--bg);border-top:1px solid var(--line);flex:0 0 auto}
+.btn{height:50px;border-radius:14px;font-weight:800;font-size:16px;flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;white-space:nowrap}
+.btn:active{opacity:.8}
+.btn svg{width:20px;height:20px}
+.btn.primary{background:var(--navy);color:#fff}
+.btn.work{background:var(--work);color:#fff}
+.btn.priv{background:var(--priv);color:#fff}
+.btn.memo{background:var(--memo);color:#fff}
+.btn.green{background:var(--done);color:#fff}
+.btn.amber{background:var(--amber-l);color:var(--amber);border:1px solid #F0DCA4}
+.btn.ghost{background:#fff;border:1px solid var(--line);color:var(--text)}
+.btn.danger{background:var(--red);color:#fff}
+.btn.danger-ghost{background:#fff;color:var(--red);border:1px solid #F3C9C5}
+.btn.sm{height:40px;font-size:14.5px;flex:0 0 auto;padding:0 14px;border-radius:11px}
+.add-opt{display:flex;align-items:center;gap:14px;width:100%;background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;text-align:left;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.add-opt .ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;color:#fff;flex:0 0 auto}
+.add-opt .ic svg{width:24px;height:24px}
+.add-opt b{display:block;font-size:17px}
+.add-opt small{color:var(--sub);font-size:13px}
+
+/* ===== forms ===== */
+.field{margin-bottom:16px}
+.label{font-size:13px;font-weight:800;color:#56616F;margin-bottom:7px;display:flex;align-items:center;gap:8px}
+.req{color:var(--red);font-size:11px;font-weight:700}
+.hint{color:var(--sub);font-size:11.5px;font-weight:600}
+.input,.textarea,.select{width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;padding:11px 12px;outline:none;-webkit-appearance:none;appearance:none}
+.input:focus,.textarea:focus,.select:focus{border-color:var(--acc,var(--work));box-shadow:0 0 0 3px rgba(47,107,216,.12)}
+.textarea{min-height:88px;resize:vertical;line-height:1.5}
+input[type=date].input{min-height:46px;display:block}
+.input:disabled{background:#F1F3F6;color:var(--sub)}
+.opts{display:flex;flex-wrap:wrap;gap:7px}
+.opt{min-height:40px;padding:0 15px;border-radius:11px;background:#fff;border:1px solid var(--line);font-size:15px;font-weight:600;color:#3C4754}
+.opt.on{background:var(--acc,var(--navy));color:#fff;border-color:transparent}
+.opts.small .opt{min-height:34px;padding:0 11px;font-size:13.5px;border-radius:9px}
+.opts.quick{margin-top:8px}
+.opts.quick .opt{min-height:34px;font-size:13.5px;padding:0 12px;color:var(--acc,var(--work));border-color:transparent;background:rgba(0,0,0,.04)}
+.seg{display:flex;background:#E4E9EF;border-radius:12px;padding:3px;gap:2px}
+.seg button{flex:1;height:40px;border-radius:9px;font-size:15px;color:#4A5563;font-weight:600}
+.seg button.on{background:#fff;color:var(--text);font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.err{color:var(--red);font-size:13px;margin-top:5px;font-weight:600}
+.err:empty{display:none}
+details.more{background:#fff;border-radius:12px;padding:0 14px;margin-bottom:16px}
+details.more>summary{padding:12px 0;font-size:14px;font-weight:700;color:#56616F;cursor:pointer}
+details.more[open]>summary{border-bottom:1px solid var(--line);margin-bottom:12px}
+.cont-box{background:var(--amber-l);border:1px solid #F0DCA4;border-radius:14px;padding:14px 14px 4px;margin-bottom:16px}
+.cont-box .ch{font-weight:800;color:var(--amber);margin-bottom:10px;font-size:14.5px}
+.note{font-size:12.5px;color:#6B5B2E;margin:-6px 0 12px}
+
+/* ===== detail ===== */
+.d-tags{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}
+.d-content{font-size:19px;font-weight:750;line-height:1.5;word-break:break-word;white-space:pre-wrap;margin-bottom:14px}
+.box{background:#fff;border-radius:14px;padding:2px 14px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);gap:12px;width:100%;text-align:left;min-height:48px}
+.row:last-child{border-bottom:0}
+.row .k{color:var(--sub);font-size:14px;flex:0 0 auto}
+.row .v{text-align:right;font-weight:700;word-break:break-word}
+.row .v.red{color:var(--red)}
+.row.act{color:var(--text);font-weight:600}
+.row.act .v{color:var(--sub);font-weight:600;font-size:13px}
+.row.act.danger{color:var(--red)}
+.bt-title{font-size:13px;font-weight:800;color:#56616F;margin:16px 2px 8px}
+.note-box{background:#fff;border-radius:14px;padding:12px 14px;white-space:pre-wrap;word-break:break-word;font-size:15px;margin-bottom:12px}
+.tl{background:#fff;border-radius:14px;padding:14px 14px 2px 30px;margin-bottom:12px}
+.tl-item{position:relative;padding-bottom:14px}
+.tl-item::before{content:'';position:absolute;left:-18px;top:6px;width:10px;height:10px;border-radius:50%;background:#E0A21B}
+.tl-item:not(:last-child)::after{content:'';position:absolute;left:-14px;top:18px;bottom:0;width:2px;background:#F0DCA4}
+.tl-h{font-size:13px;color:var(--sub);font-weight:700}
+.tl-due{font-weight:800;font-size:15px}
+.tl-r{font-size:14.5px;margin-top:2px;white-space:pre-wrap;word-break:break-word}
+.linkbtn{color:var(--work);font-weight:700;font-size:15px;padding:10px 0}
+.del-link{display:block;margin:18px auto 4px;color:var(--red);font-weight:700;font-size:15px;padding:10px 20px}
+
+/* ===== settings ===== */
+.li-row{display:flex;align-items:center;gap:4px;padding:6px 0;border-bottom:1px solid var(--line);min-height:50px}
+.li-name{flex:1;font-weight:600;word-break:break-word}
+.li-btn{height:36px;min-width:36px;padding:0 10px;border-radius:9px;font-size:13.5px;color:#4A5563;background:#F1F3F6;font-weight:600}
+.li-btn.del{color:var(--red);background:var(--red-l)}
+.li-add{display:flex;gap:8px;padding:10px 0 12px}
+.li-add .input{flex:1;padding:9px 12px}
+.help{font-size:12.5px;color:var(--sub);margin:-4px 4px 14px;line-height:1.6}
+.sw{appearance:none;-webkit-appearance:none;width:52px;height:32px;border-radius:16px;background:#D5DBE2;position:relative;transition:.2s;flex:0 0 auto;cursor:pointer;margin:0}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:.2s}
+.sw:checked{background:var(--done)}
+.sw:checked::after{left:23px}
+.sw:disabled{opacity:.5}
+
+/* ===== toast / dialog ===== */
+#toast{position:fixed;left:50%;bottom:calc(var(--tab-h) + var(--sb) + 82px);transform:translateX(-50%) translateY(16px);background:var(--navy);color:#fff;padding:12px 16px;border-radius:12px;display:flex;gap:16px;align-items:center;opacity:0;pointer-events:none;transition:.2s;z-index:95;font-size:15px;font-weight:600;max-width:calc(100% - 32px);box-shadow:0 6px 20px rgba(0,0,0,.2);white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%);pointer-events:auto}
+body.noscroll #toast{bottom:calc(var(--sb) + 84px)}
+#toast button{color:#8EC5FF;font-weight:800;padding:4px 0}
+.dlg-wrap{position:fixed;inset:0;z-index:100;background:rgba(15,23,35,.45);display:grid;place-items:center;padding:24px}
+.dlg{background:#fff;border-radius:18px;padding:20px;width:100%;max-width:340px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.dlg-title{font-weight:800;font-size:17px;margin-bottom:6px}
+.dlg-msg{color:#4A5563;font-size:14.5px;white-space:pre-wrap;margin-bottom:16px}
+.dlg-msg:empty{display:none}
+.dlg .input{margin-bottom:16px}
+.dlg-btns{display:flex;gap:8px}
+.dlg-btns .btn{height:46px}
+
+/* ===== print ===== */
+#printArea{display:none}
+@media print{
+  @page{size:A4;margin:12mm}
+  body{background:#fff}
+  #app,#sheetRoot,#toast,.dlg-wrap{display:none!important}
+  #printArea{display:block;color:#000;font-size:10pt}
+  #printArea h1{font-size:15pt;margin:0 0 2mm}
+  #printArea .pm{font-size:9pt;color:#444;margin-bottom:4mm}
+  #printArea h2{font-size:11.5pt;margin:5mm 0 2mm;padding-left:2mm;border-left:3pt solid #2F6BD8}
+  #printArea h2.private{border-left-color:#2E9A63}
+  #printArea table{width:100%;border-collapse:collapse;table-layout:fixed}
+  #printArea th,#printArea td{border:.5pt solid #999;padding:1.5mm 2mm;vertical-align:top;word-break:break-word;text-align:left}
+  #printArea th{background:#EEF1F5;font-size:9pt}
+  #printArea td.c{text-align:center}
+  #printArea .n{font-size:8.5pt;color:#555;margin-top:1mm}
+  #printArea tr{page-break-inside:avoid}
+}
+@media (min-width:700px){
+  main{padding-top:8px}
+  .stat b{font-size:28px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="tb-title" id="tbTitle">MY TASK</div>
+    <div class="tb-actions">
+      <button class="icon-btn" id="btnSearch" aria-label="検索"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      <button class="icon-btn" id="btnSettings" aria-label="設定"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></button>
+    </div>
+  </header>
+  <main id="view"></main>
+  <button id="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>追加</span></button>
+  <nav class="tabbar"><div class="tabbar-in">
+    <button class="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z"/></svg>ホーム<span class="badge" data-badge="home" hidden></span></button>
+    <button class="tab" data-tab="work"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8.5 7V5.5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2V7M3 13h18"/></svg>仕事<span class="badge" data-badge="work" hidden></span></button>
+    <button class="tab" data-tab="private"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>プライベート<span class="badge" data-badge="private" hidden></span></button>
+    <button class="tab" data-tab="memo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg>メモ<span class="badge memo" data-badge="memo" hidden></span></button>
+    <button class="tab" data-tab="done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.8 2.8L16.2 9.5"/></svg>完了履歴</button>
+  </div></nav>
+</div>
+<div id="sheetRoot"></div>
+<div id="toast"></div>
+<div id="printArea"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   基本ユーティリティ
+   ========================================================= */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => ymd(new Date());
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
+const diffDays = (a, b) => { const pa = a.split('-').map(Number), pb = b.split('-').map(Number); return Math.round((Date.UTC(pb[0], pb[1] - 1, pb[2]) - Date.UTC(pa[0], pa[1] - 1, pa[2])) / 864e5); };
+const WD = '日月火水木金土';
+const fmtDate = (s, wd = true) => { if (!s) return ''; const d = parse(s); const y = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''; return `${y}${d.getMonth() + 1}/${d.getDate()}` + (wd ? `(${WD[d.getDay()]})` : ''); };
+const fmtDateFull = s => { if (!s) return ''; const d = parse(s); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${WD[d.getDay()]}）`; };
+const relDue = s => { const n = diffDays(today(), s); if (n === 0) return '今日'; if (n === 1) return '明日'; if (n < 0) return `${-n}日超過`; if (n <= 7) return `${n}日後`; return ''; };
+const clone = o => JSON.parse(JSON.stringify(o));
+
+const ICON = {
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  work: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8.5 7V5.5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2V7M3 13h18"/></svg>',
+  priv: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>',
+  memo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg>',
+};
+
+/* =========================================================
+   データ保存（localStorage）
+   ========================================================= */
+const KEY = 'mytask_v1';
+const DEFAULT_SETTINGS = {
+  workCats: ['指示', '確認', '討議', 'その他'],
+  privCats: ['やること', '買うもの', 'その他'],
+  memoCats: ['仕事', 'プライベート', 'その他'],
+  assignees: ['自分'],
+  priorities: ['高', '中', '低'],
+  notify: { enabled: false, dayBefore: true, dayOf: true },
+  notified: {},
+  welcomed: false,
+  lastBackup: null,
+};
+let DB;
+function load() {
+  try { DB = JSON.parse(localStorage.getItem(KEY)); } catch (e) { DB = null; }
+  if (!DB || typeof DB !== 'object') DB = {};
+  if (!Array.isArray(DB.tasks)) DB.tasks = [];
+  if (!Array.isArray(DB.memos)) DB.memos = [];
+  DB.settings = Object.assign(clone(DEFAULT_SETTINGS), DB.settings || {});
+  DB.settings.notify = Object.assign(clone(DEFAULT_SETTINGS.notify), DB.settings.notify || {});
+  DB.tasks.forEach(t => { if (!Array.isArray(t.continuations)) t.continuations = []; });
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(DB)); }
+  catch (e) { toast('保存に失敗しました（容量不足の可能性）'); }
+}
+const getTask = id => DB.tasks.find(t => t.id === id);
+const getMemo = id => DB.memos.find(m => m.id === id);
+
+/* タスク判定 */
+const isDone = t => t.status === '完了';
+const isOverdue = t => !isDone(t) && !!t.due && t.due < today();
+const contCount = t => (t.continuations || []).length;
+const originalDue = t => contCount(t) ? t.continuations[0].prevDue : t.due;
+const prioRank = p => { const i = DB.settings.priorities.indexOf(p); return i < 0 ? 99 : i; };
+const TYPE_LABEL = { work: '仕事', private: 'プライベート' };
+
+const SORTS = { due: '期日が近い順', created: '登録日が新しい順', prio: '優先順位順', assignee: '担当者順' };
+function sortTasks(list, key) {
+  const dk = t => t.due || '9999-12-31';
+  return [...list].sort((a, b) => {
+    if (key === 'created') return (b.createdAt || '').localeCompare(a.createdAt || '') || (b.ts || 0) - (a.ts || 0);
+    if (key === 'prio') return prioRank(a.priority) - prioRank(b.priority) || dk(a).localeCompare(dk(b));
+    if (key === 'assignee') return (a.assignee || '￿').localeCompare(b.assignee || '￿', 'ja') || dk(a).localeCompare(dk(b));
+    return dk(a).localeCompare(dk(b)) || prioRank(a.priority) - prioRank(b.priority) || (a.ts || 0) - (b.ts || 0);
+  });
+}
+function matchKw(obj, kw, extra = []) {
+  if (!kw) return true;
+  const dates = [obj.createdAt, obj.due, obj.completedAt, obj.date].filter(Boolean);
+  const hay = [obj.content, obj.note, obj.assignee, obj.category, obj.status, ...dates, ...dates.map(d => fmtDate(d, false)),
+    ...(obj.continuations || []).map(c => c.reason), ...extra].join(' ').toLowerCase();
+  return kw.toLowerCase().split(/[\s　]+/).filter(Boolean).every(w => hay.includes(w));
+}
+
+/* =========================================================
+   トースト・ダイアログ
+   ========================================================= */
+let toastTimer;
+function toast(msg, actionText, action) {
+  const el = $('#toast');
+  el.innerHTML = `<span>${esc(msg)}</span>` + (actionText ? `<button>${esc(actionText)}</button>` : '');
+  if (actionText) el.querySelector('button').onclick = () => { el.classList.remove('show'); action(); };
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), actionText ? 4500 : 2200);
+}
+function dialog({ title = '', message = '', input, okText = 'OK', cancelText = 'キャンセル', danger = false }) {
+  return new Promise(res => {
+    const el = document.createElement('div');
+    el.className = 'dlg-wrap';
+    el.innerHTML = `<div class="dlg" role="dialog"><div class="dlg-title">${esc(title)}</div><div class="dlg-msg">${esc(message)}</div>
+      ${input !== undefined ? `<input class="input" id="dlgIn" value="${esc(input)}">` : ''}
+      <div class="dlg-btns">${cancelText ? `<button class="btn ghost" data-r="0">${esc(cancelText)}</button>` : ''}<button class="btn ${danger ? 'danger' : 'primary'}" data-r="1">${esc(okText)}</button></div></div>`;
+    document.body.appendChild(el);
+    const inp = el.querySelector('#dlgIn');
+    if (inp) { inp.focus(); inp.select(); }
+    const done = r => { el.remove(); res(input !== undefined ? (r ? inp.value : null) : r); };
+    el.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1'); else if (e.target === el) done(false); });
+    if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) done(true); });
+  });
+}
+const confirmDlg = (title, message, o = {}) => dialog({ title, message, ...o });
+const promptDlg = (title, value = '') => dialog({ title, input: value, okText: '保存' });
+
+/* =========================================================
+   シート（下から出る画面）
+   ========================================================= */
+const sheets = [];
+function openSheet(html, { full = false, refresh } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'sheet-wrap';
+  wrap.innerHTML = `<div class="sheet-bg"></div><div class="sheet ${full ? 'full' : ''}">${html}</div>`;
+  $('#sheetRoot').appendChild(wrap);
+  const sheet = wrap.querySelector('.sheet');
+  wrap.querySelector('.sheet-bg').onclick = () => closeSheet(wrap);
+  sheet.addEventListener('click', e => { if (e.target.closest('[data-close]')) closeSheet(wrap); });
+  const entry = { wrap, sheet, refresh };
+  sheets.push(entry);
+  document.body.classList.add('noscroll');
+  void wrap.offsetHeight;
+  wrap.classList.add('open');
+  return entry;
+}
+function closeSheet(wrap) {
+  const i = wrap ? sheets.findIndex(s => s.wrap === wrap) : sheets.length - 1;
+  if (i < 0) return;
+  const [s] = sheets.splice(i, 1);
+  s.wrap.classList.remove('open');
+  setTimeout(() => s.wrap.remove(), 260);
+  if (!sheets.length) document.body.classList.remove('noscroll');
+}
+function afterChange() {
+  save();
+  render();
+  sheets.forEach(s => s.refresh && s.refresh());
+}
+const head = (left, title, right) => `<div class="sh-grab"></div><div class="sh-head">${left || '<span class="hbtn"></span>'}<div class="sh-title">${title}</div>${right || '<span class="hbtn"></span>'}</div>`;
+
+/* 選択肢ボタン */
+function optList(items, val, cls = 'opt') {
+  const list = [...items];
+  if (val && !list.includes(val)) list.push(val);
+  return list.map(x => `<button type="button" class="${cls} ${x === val ? 'on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('');
+}
+function bindPick(container, onPick, allowNone = false) {
+  container.addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]'); if (!b) return;
+    const turnOff = allowNone && b.classList.contains('on');
+    $$('button[data-v]', container).forEach(x => x.classList.toggle('on', !turnOff && x === b));
+    onPick && onPick(turnOff ? '' : b.dataset.v);
+  });
+}
+const picked = c => { const b = c.querySelector('button.on'); return b ? b.dataset.v : ''; };
+
+/* =========================================================
+   カード表示
+   ========================================================= */
+function prioChip(p) {
+  const r = prioRank(p), n = DB.settings.priorities.length;
+  if (!p) return '';
+  if (r === 0) return `<span class="chip hi">優先 ${esc(p)}</span>`;
+  if (r === n - 1 && n > 1) return `<span class="chip lo">優先 ${esc(p)}</span>`;
+  return `<span class="chip">優先 ${esc(p)}</span>`;
+}
+function taskCard(t, { showType = false, mode = '' } = {}) {
+  const ov = isOverdue(t), done = isDone(t), n = contCount(t);
+  const c = [];
+  if (showType) c.push(`<span class="chip ${t.type === 'work' ? 'work' : 'priv'}">${TYPE_LABEL[t.type]}</span>`);
+  if (mode === 'done') {
+    c.push(`<span class="chip green">完了 ${fmtDate(t.completedAt)}</span>`);
+    c.push(`<span class="chip">登録 ${fmtDate(t.createdAt, false)}</span>`);
+    if (originalDue(t)) c.push(`<span class="chip">当初期日 ${fmtDate(originalDue(t), false)}</span>`);
+  } else if (t.due) {
+    const rel = relDue(t.due);
+    const cls = ov ? 'red' : (t.due === today() ? 'today' : '');
+    c.push(`<span class="chip ${cls}">${fmtDate(t.due)}${rel ? '・' + rel : ''}</span>`);
+  }
+  if (t.category) c.push(`<span class="chip">${esc(t.category)}</span>`);
+  if (t.type === 'work' && t.assignee) c.push(`<span class="chip">担当 ${esc(t.assignee)}</span>`);
+  if (mode !== 'done') c.push(prioChip(t.priority));
+  if (n) c.push(`<span class="chip amber">継続${n}回</span>`);
+  return `<div class="card task ${t.type} ${done ? 'done' : ''} ${ov ? 'overdue' : ''}" data-task="${t.id}">
+    <button class="check" data-check="${t.id}" aria-label="${done ? '未完了に戻す' : '完了にする'}"><span>${ICON.check}</span></button>
+    <div class="card-body"><div class="card-title">${esc(t.content)}</div><div class="chips">${c.join('')}</div></div></div>`;
+}
+function memoCard(m) {
+  const conv = m.status === 'タスク化済み';
+  return `<div class="card memo-card ${conv ? 'converted' : ''}" data-memo="${m.id}"><div class="memo-text">${esc(m.content)}</div>
+    <div class="chips"><span class="chip">${fmtDate(m.date)}</span>${m.category ? `<span class="chip memo">${esc(m.category)}</span>` : ''}
+    ${m.assignee && m.assignee !== '自分' ? `<span class="chip">担当 ${esc(m.assignee)}</span>` : ''}${conv ? '<span class="chip green">タスク化済み</span>' : ''}</div></div>`;
+}
+
+/* =========================================================
+   画面描画
+   ========================================================= */
+const state = {
+  tab: 'home',
+  work: { filter: 'active', q: '', sort: 'due' },
+  private: { filter: 'active', q: '', sort: 'due' },
+  memo: { filter: 'open', q: '' },
+  done: { type: 'all', q: '' },
+};
+const TITLES = { home: 'MY TASK', work: '仕事', private: 'プライベート', memo: '思いつきメモ', done: '完了履歴' };
+
+function render() {
+  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
+  $('#tbTitle').textContent = TITLES[state.tab];
+  const fab = $('#fab');
+  fab.className = { work: 'work', private: 'private', memo: 'memo' }[state.tab] || '';
+  fab.hidden = state.tab === 'done';
+  document.documentElement.style.setProperty('--acc', { work: 'var(--work)', private: 'var(--priv)', memo: 'var(--memo)', done: 'var(--done)' }[state.tab] || 'var(--navy)');
+  // バッジ
+  const ovW = DB.tasks.filter(t => t.type === 'work' && isOverdue(t)).length;
+  const ovP = DB.tasks.filter(t => t.type === 'private' && isOverdue(t)).length;
+  const memoN = DB.memos.filter(m => m.status === '未整理').length;
+  setBadge('work', ovW); setBadge('private', ovP); setBadge('memo', memoN);
+  setBadge('home', 0);
+
+  const v = $('#view');
+  if (state.tab === 'home') v.innerHTML = renderHome();
+  else if (state.tab === 'work' || state.tab === 'private') renderTaskTab(state.tab);
+  else if (state.tab === 'memo') renderMemoTab();
+  else if (state.tab === 'done') renderDoneTab();
+}
+function setBadge(k, n) { const b = $(`[data-badge="${k}"]`); if (!b) return; b.hidden = !n; b.textContent = n > 99 ? '99+' : n; }
+
+/* ---------- ホーム ---------- */
+function renderHome() {
+  const td = today(), d = new Date();
+  const active = DB.tasks.filter(t => !isDone(t));
+  const overdue = sortTasks(active.filter(isOverdue), 'due');
+  const todays = sortTasks(active.filter(t => t.due === td), 'prio');
+  const week = sortTasks(active.filter(t => t.due && t.due > td && t.due <= addDays(td, 7)), 'due');
+  const cont = active.filter(t => t.status === '継続');
+  const used = new Set([...overdue, ...todays, ...week].map(t => t.id));
+  const contRest = sortTasks(cont.filter(t => !used.has(t.id)), 'due');
+  contRest.forEach(t => used.add(t.id));
+  const rest = sortTasks(active.filter(t => !used.has(t.id)), 'prio');
+  const memos = DB.memos.filter(m => m.status === '未整理').sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  const stat = (n, label, cls) => `<div class="stat ${n ? cls : 'zero'}"><b>${n}</b><span>${label}</span></div>`;
+  let h = `<div class="hero"><div class="hero-d">${d.getMonth() + 1}月${d.getDate()}日<small>（${WD[d.getDay()]}）</small></div><div class="hero-y">${d.getFullYear()}年</div></div>
+    <div class="stats">${stat(active.length, '未完了', 'blue')}${stat(overdue.length, '期限超過', 'red')}${stat(todays.length, '今日', '')}${stat(cont.length, '継続中', 'amber')}</div>`;
+
+  if (!DB.settings.welcomed && !DB.tasks.length && !DB.memos.length) {
+    h += `<div class="welcome"><h3>ようこそ</h3><p>右下の「＋追加」から仕事・プライベート・思いつきメモを登録できます。<br>まず操作感を試したい場合は、サンプルデータを入れてみてください（設定からまとめて削除できます）。</p>
+      <div class="btns"><button class="btn ghost" id="wStart">空のまま始める</button><button class="btn primary" id="wSample">サンプルで試す</button></div></div>`;
+    setTimeout(() => {
+      const s = $('#wSample'), e = $('#wStart');
+      if (s) s.onclick = () => { addSamples(); DB.settings.welcomed = true; afterChange(); toast('サンプルを追加しました'); };
+      if (e) e.onclick = () => { DB.settings.welcomed = true; afterChange(); };
+    });
+  }
+
+  const sec = (title, dot, list, emptyText, opts = {}) => {
+    if (!list.length && !emptyText) return '';
+    return `<div class="sec"><span class="dot ${dot}"></span>${title}<span class="cnt">${list.length}</span></div>` +
+      (list.length ? list.map(t => taskCard(t, { showType: true })).join('') : `<div class="empty-s">${emptyText}</div>`);
+  };
+  h += sec('期限超過', 'red', overdue);
+  h += sec('今日が期日', 'navy', todays, '今日が期日のタスクはありません');
+  h += sec('今後7日以内', 'blue', week);
+  h += sec('継続中', 'amber', contRest);
+  if (memos.length) {
+    h += `<div class="sec"><span class="dot orange"></span>未処理の思いつきメモ<span class="cnt">${memos.length}</span><button class="more" onclick="switchTab('memo')">すべて見る</button></div>` + memos.slice(0, 3).map(memoCard).join('');
+  }
+  if (rest.length) {
+    h += `<details class="fold" ${rest.length <= 5 ? 'open' : ''}><summary class="sec"><span class="dot gray"></span>その他の未完了<span class="cnt">${rest.length}</span><span class="arrow">▶</span></summary>${rest.map(t => taskCard(t, { showType: true })).join('')}</details>`;
+  }
+  if (!active.length && DB.settings.welcomed) h += `<div class="empty"><b>未完了のタスクはありません</b>右下の「＋追加」から登録できます</div>`;
+  return h;
+}
+
+/* ---------- 仕事 / プライベート ---------- */
+const FILTERS = {
+  work: [['active', '未完了'], ['all', 'すべて'], ['cont', '継続'], ['overdue', '期限超過'], ['done', '完了'], ['byAssignee', '担当者別'], ['byCat', '分類別']],
+  private: [['active', '未完了'], ['today', '今日'], ['week', '今週'], ['shop', '買うもの'], ['overdue', '期限超過'], ['done', '完了'], ['all', 'すべて']],
+};
+function filterTasks(type, f) {
+  const td = today(), all = DB.tasks.filter(t => t.type === type);
+  switch (f) {
+    case 'all': return all;
+    case 'cont': return all.filter(t => t.status === '継続');
+    case 'overdue': return all.filter(isOverdue);
+    case 'done': return all.filter(isDone);
+    case 'today': return all.filter(t => !isDone(t) && t.due === td);
+    case 'week': return all.filter(t => !isDone(t) && t.due && t.due >= td && t.due <= addDays(td, 6));
+    case 'shop': return all.filter(t => !isDone(t) && t.category === '買うもの');
+    default: return all.filter(t => !isDone(t));
+  }
+}
+function renderTaskTab(type) {
+  const st = state[type];
+  const sorts = Object.entries(SORTS).filter(([k]) => type === 'work' || k !== 'assignee');
+  $('#view').innerHTML = `
+    <div class="fbar">${FILTERS[type].map(([k, l]) => `<button class="fchip ${st.filter === k ? 'on' : ''}" data-f="${k}">${l}${['byAssignee', 'byCat'].includes(k) ? '' : `<span class="fc">${filterTasks(type, k).length}</span>`}</button>`).join('')}</div>
+    <div class="searchrow"><div class="search">${ICON.search}<input class="search-in" id="q" type="search" placeholder="キーワード・日付で検索" value="${esc(st.q)}"></div>
+      <select class="sort" id="sort">${sorts.map(([k, l]) => `<option value="${k}" ${st.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    ${type === 'private' && st.filter === 'shop' ? `<div class="inline-add"><input class="input" id="shopIn" placeholder="買うものを入力してすぐ追加" enterkeyhint="done"><button class="btn priv sm" id="shopAdd">追加</button></div>` : ''}
+    <div id="list"></div>`;
+  $$('.fchip', $('#view')).forEach(b => b.onclick = () => { st.filter = b.dataset.f; render(); });
+  $('#q').oninput = e => { st.q = e.target.value; renderTaskList(type); };
+  $('#sort').onchange = e => { st.sort = e.target.value; renderTaskList(type); };
+  const si = $('#shopIn');
+  if (si) {
+    const add = () => {
+      const v = si.value.trim(); if (!v) return;
+      DB.tasks.push(newTask({ type: 'private', content: v, category: '買うもの' }));
+      afterChange(); toast('追加しました');
+      const n = $('#shopIn'); if (n) n.focus();
+    };
+    $('#shopAdd').onclick = add;
+    si.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) add(); });
+  }
+  renderTaskList(type);
+}
+function renderTaskList(type) {
+  const st = state[type];
+  let list = filterTasks(type, st.filter).filter(t => matchKw(t, st.q));
+  list = st.filter === 'done' && st.sort === 'due'
+    ? [...list].sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || '') || (b.completedTs || 0) - (a.completedTs || 0))
+    : sortTasks(list, st.sort);
+  const el = $('#list');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><b>${st.q ? '該当するタスクはありません' : 'タスクはありません'}</b>${st.q ? '検索語を変えてみてください' : '右下の「＋追加」から登録できます'}</div>`;
+    return;
+  }
+  const mode = st.filter === 'done' ? 'done' : '';
+  if (st.filter === 'byAssignee' || st.filter === 'byCat') {
+    const key = st.filter === 'byAssignee' ? 'assignee' : 'category';
+    const order = st.filter === 'byAssignee' ? DB.settings.assignees : DB.settings.workCats;
+    const g = new Map();
+    list.forEach(t => { const k = t[key] || '（未設定）'; if (!g.has(k)) g.set(k, []); g.get(k).push(t); });
+    const keys = [...g.keys()].sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, 'ja'); });
+    el.innerHTML = `<div class="listmeta">未完了のみ表示</div>` + keys.map(k => `<div class="sec"><span class="dot blue"></span>${esc(k)}<span class="cnt">${g.get(k).length}</span></div>${g.get(k).map(t => taskCard(t)).join('')}`).join('');
+  } else {
+    el.innerHTML = `<div class="listmeta">${list.length}件</div>` + list.map(t => taskCard(t, { mode })).join('');
+  }
+}
+
+/* ---------- 思いつきメモ ---------- */
+let qmCat = '';
+function renderMemoTab() {
+  const st = state.memo;
+  const cnt = f => DB.memos.filter(m => f === 'all' || (f === 'open' ? m.status === '未整理' : m.status === 'タスク化済み')).length;
+  $('#view').innerHTML = `
+    <div class="card quick-memo"><textarea class="textarea" id="qm" rows="2" placeholder="思いついたことをすぐメモ…"></textarea>
+      <div class="qm-row"><div class="opts small" id="qmCat">${optList(DB.settings.memoCats, qmCat)}</div><button class="btn memo sm" id="qmSave">保存</button></div></div>
+    <div class="fbar">${[['open', '未整理'], ['done', 'タスク化済み'], ['all', 'すべて']].map(([k, l]) => `<button class="fchip ${st.filter === k ? 'on' : ''}" data-f="${k}">${l}<span class="fc">${cnt(k)}</span></button>`).join('')}</div>
+    <div class="searchrow"><div class="search">${ICON.search}<input class="search-in" id="q" type="search" placeholder="メモを検索" value="${esc(st.q)}"></div></div>
+    <div id="list"></div>`;
+  bindPick($('#qmCat'), v => qmCat = v, true);
+  $('#qmSave').onclick = () => {
+    const v = $('#qm').value.trim();
+    if (!v) { $('#qm').focus(); return; }
+    DB.memos.push(newMemo({ content: v, category: qmCat }));
+    afterChange(); toast('メモを保存しました');
+  };
+  $$('.fchip', $('#view')).forEach(b => b.onclick = () => { st.filter = b.dataset.f; render(); });
+  $('#q').oninput = e => { st.q = e.target.value; renderMemoList(); };
+  renderMemoList();
+}
+function renderMemoList() {
+  const st = state.memo;
+  const list = DB.memos.filter(m => st.filter === 'all' || (st.filter === 'open' ? m.status === '未整理' : m.status === 'タスク化済み'))
+    .filter(m => matchKw(m, st.q)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || 0) - (a.ts || 0));
+  const el = $('#list');
+  if (!list.length) { el.innerHTML = `<div class="empty"><b>${st.q ? '該当するメモはありません' : 'メモはありません'}</b>${st.q ? '' : '上の入力欄からすぐに記録できます'}</div>`; return; }
+  const g = new Map();
+  list.forEach(m => { if (!g.has(m.date)) g.set(m.date, []); g.get(m.date).push(m); });
+  el.innerHTML = [...g].map(([d, arr]) => `<div class="sec"><span class="dot orange"></span>${fmtDateFull(d)}<span class="cnt">${arr.length}</span></div>${arr.map(memoCard).join('')}`).join('');
+}
+
+/* ---------- 完了履歴 ---------- */
+function renderDoneTab() {
+  const st = state.done;
+  const all = DB.tasks.filter(isDone);
+  const cnt = k => all.filter(t => k === 'all' || t.type === k).length;
+  $('#view').innerHTML = `
+    <div class="fbar">${[['all', 'すべて'], ['work', '仕事'], ['private', 'プライベート']].map(([k, l]) => `<button class="fchip ${st.type === k ? 'on' : ''}" data-f="${k}">${l}<span class="fc">${cnt(k)}</span></button>`).join('')}</div>
+    <div class="searchrow"><div class="search">${ICON.search}<input class="search-in" id="q" type="search" placeholder="完了したタスクを検索" value="${esc(st.q)}"></div></div>
+    <div id="list"></div>`;
+  $$('.fchip', $('#view')).forEach(b => b.onclick = () => { st.type = b.dataset.f; render(); });
+  $('#q').oninput = e => { st.q = e.target.value; renderDoneList(); };
+  renderDoneList();
+}
+function renderDoneList() {
+  const st = state.done;
+  const list = DB.tasks.filter(t => isDone(t) && (st.type === 'all' || t.type === st.type) && matchKw(t, st.q))
+    .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || '') || (b.completedTs || 0) - (a.completedTs || 0));
+  const el = $('#list');
+  if (!list.length) { el.innerHTML = `<div class="empty"><b>${st.q ? '該当するタスクはありません' : '完了したタスクはまだありません'}</b>${st.q ? '' : '完了したタスクは削除されず、ここに残ります'}</div>`; return; }
+  const g = new Map();
+  list.forEach(t => { const k = (t.completedAt || '').slice(0, 7) || '不明'; if (!g.has(k)) g.set(k, []); g.get(k).push(t); });
+  el.innerHTML = [...g].map(([k, arr]) => { const [y, m] = k.split('-'); return `<div class="sec"><span class="dot green"></span>${m ? `${y}年${+m}月` : k}<span class="cnt">${arr.length}</span></div>${arr.map(t => taskCard(t, { showType: st.type === 'all', mode: 'done' })).join('')}`; }).join('');
+}
+
+function switchTab(tab) { state.tab = tab; render(); window.scrollTo(0, 0); }
+
+/* =========================================================
+   データ作成・操作
+   ========================================================= */
+function newTask(o) {
+  const S = DB.settings;
+  return Object.assign({
+    id: uid(), ts: Date.now(), type: 'work', createdAt: today(), content: '', category: '', assignee: '', due: '',
+    priority: S.priorities[Math.min(1, S.priorities.length - 1)] || '', status: '未完了', note: '', completedAt: null, completedTs: null,
+    continuations: [], fromMemoId: null,
+  }, o);
+}
+function newMemo(o) {
+  return Object.assign({ id: uid(), ts: Date.now(), date: today(), assignee: '自分', content: '', category: '', status: '未整理', taskId: null }, o);
+}
+function completeTask(id) {
+  const t = getTask(id); if (!t) return;
+  const prev = { status: t.status, completedAt: t.completedAt, completedTs: t.completedTs };
+  t.status = '完了'; t.completedAt = today(); t.completedTs = Date.now();
+  afterChange();
+  toast('完了にしました', '元に戻す', () => { Object.assign(t, prev); afterChange(); });
+}
+function reopenTask(id) {
+  const t = getTask(id); if (!t) return;
+  const prev = { status: t.status, completedAt: t.completedAt, completedTs: t.completedTs };
+  t.status = '未完了'; t.completedAt = null; t.completedTs = null;
+  afterChange();
+  toast('未完了に戻しました', '元に戻す', () => { Object.assign(t, prev); afterChange(); });
+}
+async function deleteTask(id, wrap) {
+  const t = getTask(id); if (!t) return;
+  const ok = await confirmDlg('タスクを削除しますか？', `「${t.content.slice(0, 40)}」\n削除すると元に戻せません。\n（完了したタスクは「完了」にすると履歴に残せます）`, { okText: '削除する', danger: true });
+  if (!ok) return;
+  DB.tasks = DB.tasks.filter(x => x.id !== id);
+  if (wrap) closeSheet(wrap);
+  afterChange(); toast('削除しました');
+}
+
+/* 一覧のチェックボタン */
+function onCheck(id, btn) {
+  const t = getTask(id); if (!t) return;
+  if (isDone(t)) { reopenTask(id); return; }
+  btn.classList.add('checked');
+  const card = btn.closest('.task');
+  if (card) card.classList.add('completing');
+  setTimeout(() => completeTask(id), 230);
+}
+
+/* =========================================================
+   タスク詳細
+   ========================================================= */
+function openTaskDetail(id) {
+  const entry = openSheet('', { refresh: () => draw() });
+  function draw() {
+    const t = getTask(id);
+    if (!t) { closeSheet(entry.wrap); return; }
+    const isWork = t.type === 'work', n = contCount(t), ov = isOverdue(t), done = isDone(t);
+    const status = done ? '<span class="chip green">完了</span>' : t.status === '継続' ? `<span class="chip amber">継続中（${n}回目）</span>` : '<span class="chip">未完了</span>';
+    const rows = [
+      ['登録日', fmtDateFull(t.createdAt)],
+      ['分類', esc(t.category) || '—'],
+      ...(isWork ? [['担当者', esc(t.assignee) || '—']] : []),
+      ['期日', t.due ? `${fmtDateFull(t.due)}${!done && relDue(t.due) ? `<br><small>${relDue(t.due)}</small>` : ''}` : '設定なし', ov ? 'red' : ''],
+      ...(n ? [['当初の期日', originalDue(t) ? fmtDateFull(originalDue(t)) : 'なし'], ['継続回数', `${n}回`]] : []),
+      ['優先順位', esc(t.priority) || '—'],
+      ...(done ? [['完了日', fmtDateFull(t.completedAt)]] : []),
+    ];
+    const memo = t.fromMemoId && getMemo(t.fromMemoId);
+    entry.sheet.innerHTML = head('<button class="hbtn l" data-close>閉じる</button>', TYPE_LABEL[t.type] + 'のタスク', '<button class="hbtn r" id="dEdit">編集</button>') + `
+      <div class="sh-body">
+        <div class="d-tags"><span class="chip ${isWork ? 'work' : 'priv'}">${TYPE_LABEL[t.type]}</span>${status}${ov ? '<span class="chip red">期限超過</span>' : ''}</div>
+        <div class="d-content">${esc(t.content)}</div>
+        <div class="box">${rows.map(([k, v, c]) => `<div class="row"><span class="k">${k}</span><span class="v ${c || ''}">${v}</span></div>`).join('')}</div>
+        ${t.note ? `<div class="bt-title">備考</div><div class="note-box">${esc(t.note)}</div>` : ''}
+        ${n ? `<div class="bt-title">継続履歴</div><div class="tl">${t.continuations.map((c, i) => `<div class="tl-item"><div class="tl-h">${i + 1}回目の継続 ・ ${fmtDate(c.date)} に処理</div>
+          <div class="tl-due">${c.prevDue ? fmtDate(c.prevDue) : '期日なし'} → ${fmtDate(c.newDue)}</div><div class="tl-r">理由：${esc(c.reason)}</div></div>`).join('')}</div>` : ''}
+        ${memo ? `<button class="linkbtn" data-memo="${memo.id}">元の思いつきメモを見る ›</button>` : ''}
+        <button class="del-link" id="dDel">このタスクを削除</button>
+      </div>
+      <div class="sh-foot">${done
+        ? `<button class="btn ghost" id="dReopen">未完了に戻す</button>`
+        : `${isWork ? `<button class="btn amber" id="dCont">継続する</button>` : ''}<button class="btn green" id="dDone">${ICON.check}完了にする</button>`}</div>`;
+    const s = entry.sheet;
+    $('#dEdit', s).onclick = () => openTaskForm({ id });
+    $('#dDel', s).onclick = () => deleteTask(id, entry.wrap);
+    if ($('#dReopen', s)) $('#dReopen', s).onclick = () => reopenTask(id);
+    if ($('#dDone', s)) $('#dDone', s).onclick = () => { closeSheet(entry.wrap); completeTask(id); };
+    if ($('#dCont', s)) $('#dCont', s).onclick = () => openTaskForm({ id, cont: true });
+  }
+  draw();
+}
+
+/* =========================================================
+   タスク登録・編集フォーム
+   ========================================================= */
+function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
+  const S = DB.settings;
+  const t = id ? getTask(id) : null;
+  type = t ? t.type : type;
+  const isWork = type === 'work';
+  const cats = isWork ? S.workCats : S.privCats;
+  const v = t ? { ...t } : newTask({ type, content: prefill.content || '', category: prefill.category || cats[0] || '', assignee: isWork ? (prefill.assignee || S.assignees[0] || '') : '' });
+  const status0 = t ? t.status : '未完了';
+  let status = cont ? '継続' : status0;
+  const contRequired = () => cont || status0 !== '継続';
+  const acc = isWork ? 'var(--work)' : 'var(--priv)';
+  const statuses = isWork ? ['未完了', '継続', '完了'] : ['未完了', '完了'];
+  const title = cont ? '継続する' : t ? '編集' : (isWork ? '仕事を追加' : 'プライベートを追加');
+
+  const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', title, '') + `
+    <div class="sh-body" style="--acc:${acc}">
+      ${t ? `<div class="field"><div class="label">状態</div><div class="seg" id="fStatus">${statuses.map(x => `<button type="button" data-v="${x}" class="${x === status ? 'on' : ''}">${x}</button>`).join('')}</div></div>` : ''}
+      ${t && isWork ? `<div class="cont-box" id="contBox" hidden>
+        <div class="ch">継続処理${contCount(t) ? `（これまで${contCount(t)}回継続）` : ''}</div>
+        <div class="field"><div class="label">継続理由<span class="req" id="rq1">必須</span></div><textarea class="textarea" id="fReason" rows="2" placeholder="例）先方の回答待ちのため"></textarea><div class="err" id="eReason"></div></div>
+        <div class="field"><div class="label">新しい期日<span class="req" id="rq2">必須</span></div><input type="date" class="input" id="fNewDue"><div class="opts quick" id="fNewDueQ"><button type="button" class="opt" data-d="1">明日</button><button type="button" class="opt" data-d="3">3日後</button><button type="button" class="opt" data-d="7">1週間後</button><button type="button" class="opt" data-d="14">2週間後</button></div><div class="err" id="eNewDue"></div></div>
+        <div class="note" id="contNote">現在の期日（${t.due ? fmtDate(t.due) : 'なし'}）と理由は履歴に保存され、継続日は今日の日付で自動記録されます。</div>
+      </div>` : ''}
+      <div class="field"><div class="label">内容<span class="req">必須</span></div>
+        <textarea class="textarea" id="fContent" rows="3" placeholder="${isWork ? '例）見積書を確認して返信する' : '例）牛乳を買う'}">${esc(v.content)}</textarea><div class="err" id="eContent"></div></div>
+      <div class="field"><div class="label">分類</div><div class="opts" id="fCat">${optList(cats, v.category)}</div></div>
+      ${isWork ? `<div class="field"><div class="label">担当者</div><div class="opts" id="fAsgOpts">${optList(S.assignees, v.assignee)}</div>
+        <input class="input" id="fAsg" style="margin-top:8px" placeholder="上にない場合は入力" value="${esc(v.assignee)}"></div>` : ''}
+      <div class="field" id="dueField"><div class="label">期日<span class="hint">${isWork ? '' : '任意'}</span></div>
+        <input type="date" class="input" id="fDue" value="${v.due || ''}">
+        <div class="opts quick" id="fDueQ"><button type="button" class="opt" data-d="0">今日</button><button type="button" class="opt" data-d="1">明日</button><button type="button" class="opt" data-d="7">1週間後</button><button type="button" class="opt" data-d="">期日なし</button></div></div>
+      <div class="field"><div class="label">優先順位</div><div class="seg" id="fPrio">${optList(S.priorities, v.priority, '')}</div></div>
+      <details class="more" ${t && (t.note) ? 'open' : ''}><summary>備考・登録日</summary>
+        <div class="field"><div class="label">備考</div><textarea class="textarea" id="fNote" rows="3" placeholder="補足事項など">${esc(v.note)}</textarea></div>
+        <div class="field"><div class="label">登録日</div><input type="date" class="input" id="fCreated" value="${v.createdAt || today()}"></div>
+      </details>
+    </div>
+    <div class="sh-foot"><button class="btn ${isWork ? 'work' : 'priv'}" id="fSave">${cont ? '継続して保存' : t ? '保存する' : '登録する'}</button></div>`);
+  const s = entry.sheet;
+  const fContent = $('#fContent', s);
+  if (!t) fContent.focus({ preventScroll: true });
+
+  bindPick($('#fCat', s));
+  bindPick($('#fPrio', s));
+  if (isWork) {
+    const asg = $('#fAsg', s), ao = $('#fAsgOpts', s);
+    bindPick(ao, val => asg.value = val, true);
+    asg.addEventListener('input', () => $$('button', ao).forEach(b => b.classList.toggle('on', b.dataset.v === asg.value.trim())));
+  }
+  const fDue = $('#fDue', s);
+  $('#fDueQ', s).addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; fDue.value = b.dataset.d === '' ? '' : addDays(today(), +b.dataset.d); });
+
+  function syncStatus() {
+    const box = $('#contBox', s); if (!box) return;
+    const show = status === '継続';
+    box.hidden = !show;
+    const req = contRequired();
+    $('#rq1', s).textContent = $('#rq2', s).textContent = req ? '必須' : 'さらに継続する場合のみ入力';
+    fDue.disabled = show && req;
+    $('#fDueQ', s).hidden = show && req;
+  }
+  if (t) {
+    const seg = $('#fStatus', s);
+    bindPick(seg, val => { status = val; syncStatus(); });
+    const nd = $('#fNewDue', s);
+    if (nd) $('#fNewDueQ', s).addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; nd.value = addDays(today(), +b.dataset.d); });
+    syncStatus();
+    if (cont) setTimeout(() => $('#fReason', s) && $('#fReason', s).focus({ preventScroll: true }), 300);
+  }
+
+  $('#fSave', s).onclick = () => {
+    const content = fContent.value.trim();
+    $$('.err', s).forEach(e => e.textContent = '');
+    if (!content) { $('#eContent', s).textContent = '内容を入力してください'; fContent.focus(); return; }
+    const vals = {
+      content, category: picked($('#fCat', s)), priority: picked($('#fPrio', s)),
+      assignee: isWork ? $('#fAsg', s).value.trim() : '', note: $('#fNote', s).value.trim(),
+      createdAt: $('#fCreated', s).value || today(),
+    };
+    if (isWork && vals.assignee && !S.assignees.includes(vals.assignee)) S.assignees.push(vals.assignee);
+
+    if (!t) {
+      const nt = newTask({ type, ...vals, due: fDue.value, fromMemoId: memoId || null });
+      DB.tasks.push(nt);
+      if (memoId) { const m = getMemo(memoId); if (m) { m.status = 'タスク化済み'; m.taskId = nt.id; m.convertedAt = today(); } }
+      closeSheet(entry.wrap); afterChange();
+      toast(memoId ? 'メモをタスクにしました' : '登録しました');
+      return;
+    }
+    if (status === '継続') {
+      const reason = $('#fReason', s).value.trim(), nd = $('#fNewDue', s).value;
+      if (contRequired() || reason || nd) {
+        let bad = false;
+        if (!reason) { $('#eReason', s).textContent = '継続理由を入力してください'; bad = true; }
+        if (!nd) { $('#eNewDue', s).textContent = '新しい期日を選んでください'; bad = true; }
+        if (bad) { $('#contBox', s).scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+        t.continuations.push({ date: today(), prevDue: t.due || '', newDue: nd, reason });
+        Object.assign(t, vals, { due: nd, status: '継続', completedAt: null, completedTs: null });
+        closeSheet(entry.wrap); afterChange(); toast(`継続にしました（${contCount(t)}回目）`);
+        return;
+      }
+      Object.assign(t, vals, { due: fDue.value, status: '継続', completedAt: null, completedTs: null });
+    } else if (status === '完了') {
+      if (t.status !== '完了') { t.completedAt = today(); t.completedTs = Date.now(); }
+      Object.assign(t, vals, { due: fDue.value, status: '完了' });
+    } else {
+      Object.assign(t, vals, { due: fDue.value, status: '未完了', completedAt: null, completedTs: null });
+    }
+    closeSheet(entry.wrap); afterChange(); toast('保存しました');
+  };
+}
+
+/* =========================================================
+   思いつきメモ：詳細・編集・クイック登録
+   ========================================================= */
+function openMemoDetail(id) {
+  const entry = openSheet('', { refresh: () => draw() });
+  function draw() {
+    const m = getMemo(id);
+    if (!m) { closeSheet(entry.wrap); return; }
+    const task = m.taskId && getTask(m.taskId);
+    entry.sheet.innerHTML = head('<button class="hbtn l" data-close>閉じる</button>', '思いつきメモ', '<button class="hbtn r" id="mEdit">編集</button>') + `
+      <div class="sh-body">
+        <div class="d-tags"><span class="chip memo">思いつきメモ</span>${m.status === 'タスク化済み' ? '<span class="chip green">タスク化済み</span>' : '<span class="chip">未整理</span>'}</div>
+        <div class="d-content">${esc(m.content)}</div>
+        <div class="box">
+          <div class="row"><span class="k">日付</span><span class="v">${fmtDateFull(m.date)}</span></div>
+          <div class="row"><span class="k">担当者</span><span class="v">${esc(m.assignee) || '—'}</span></div>
+          <div class="row"><span class="k">分類</span><span class="v">${esc(m.category) || '—'}</span></div>
+          ${m.convertedAt ? `<div class="row"><span class="k">タスク化した日</span><span class="v">${fmtDateFull(m.convertedAt)}</span></div>` : ''}
+        </div>
+        ${task ? `<button class="linkbtn" data-task="${task.id}">変換したタスクを開く ›</button>` : (m.taskId ? '<div class="empty-s">変換先のタスクは削除されています</div>' : '')}
+        <button class="del-link" id="mDel">このメモを削除</button>
+      </div>
+      <div class="sh-foot"><button class="btn work" id="mToWork">${ICON.work}仕事のタスクにする</button><button class="btn priv" id="mToPriv">${ICON.priv}プライベートに</button></div>`;
+    const s = entry.sheet;
+    $('#mEdit', s).onclick = () => openMemoForm(id);
+    $('#mDel', s).onclick = async () => {
+      if (!await confirmDlg('メモを削除しますか？', '削除すると元に戻せません。', { okText: '削除する', danger: true })) return;
+      DB.memos = DB.memos.filter(x => x.id !== id);
+      closeSheet(entry.wrap); afterChange(); toast('削除しました');
+    };
+    const conv = async type => {
+      if (m.status === 'タスク化済み' && !await confirmDlg('すでにタスク化済みです', 'もう一度タスクを作成しますか？', { okText: '作成する' })) return;
+      openTaskForm({ type, memoId: id, prefill: { content: m.content, assignee: m.assignee } });
+    };
+    $('#mToWork', s).onclick = () => conv('work');
+    $('#mToPriv', s).onclick = () => conv('private');
+  }
+  draw();
+}
+function openMemoForm(id) {
+  const S = DB.settings, m = getMemo(id); if (!m) return;
+  const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', 'メモを編集', '') + `
+    <div class="sh-body" style="--acc:var(--memo)">
+      <div class="field"><div class="label">内容<span class="req">必須</span></div><textarea class="textarea" id="mContent" rows="4">${esc(m.content)}</textarea><div class="err" id="emContent"></div></div>
+      <div class="field"><div class="label">分類</div><div class="opts" id="mCat">${optList(S.memoCats, m.category)}</div></div>
+      <div class="field"><div class="label">担当者</div><div class="opts" id="mAsgOpts">${optList(S.assignees, m.assignee)}</div><input class="input" id="mAsg" style="margin-top:8px" value="${esc(m.assignee)}" placeholder="自分 または任意の担当者"></div>
+      <div class="field"><div class="label">日付</div><input type="date" class="input" id="mDate" value="${m.date}"></div>
+      <div class="field"><div class="label">状態</div><div class="seg" id="mStatus">${optList(['未整理', 'タスク化済み'], m.status, '')}</div></div>
+    </div>
+    <div class="sh-foot"><button class="btn memo" id="mSave">保存する</button></div>`);
+  const s = entry.sheet;
+  bindPick($('#mCat', s), null, true); bindPick($('#mStatus', s));
+  const asg = $('#mAsg', s);
+  bindPick($('#mAsgOpts', s), v => asg.value = v, true);
+  $('#mSave', s).onclick = () => {
+    const c = $('#mContent', s).value.trim();
+    if (!c) { $('#emContent', s).textContent = '内容を入力してください'; return; }
+    Object.assign(m, { content: c, category: picked($('#mCat', s)), assignee: asg.value.trim(), date: $('#mDate', s).value || m.date, status: picked($('#mStatus', s)) || m.status });
+    closeSheet(entry.wrap); afterChange(); toast('保存しました');
+  };
+}
+function openQuickMemo() {
+  let cat = '';
+  const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', '思いつきメモ', '<button class="hbtn r" id="qSave2" style="color:var(--memo);font-weight:800">保存</button>') + `
+    <div class="sh-body" style="--acc:var(--memo)">
+      <textarea class="textarea" id="qText" rows="5" placeholder="思いついたことを入力（内容だけで保存できます）"></textarea>
+      <div class="label" style="margin-top:14px">分類<span class="hint">任意</span></div><div class="opts small" id="qCat">${optList(DB.settings.memoCats, '')}</div>
+    </div>
+    <div class="sh-foot"><button class="btn memo" id="qSave">保存する</button></div>`);
+  const s = entry.sheet, ta = $('#qText', s);
+  ta.focus({ preventScroll: true });
+  bindPick($('#qCat', s), v => cat = v, true);
+  const go = () => {
+    const v = ta.value.trim(); if (!v) { ta.focus(); return; }
+    DB.memos.push(newMemo({ content: v, category: cat }));
+    closeSheet(entry.wrap); afterChange(); toast('メモを保存しました');
+  };
+  $('#qSave', s).onclick = go; $('#qSave2', s).onclick = go;
+}
+function openAddChooser() {
+  const entry = openSheet(head('<span class="hbtn"></span>', '追加', '<button class="hbtn r" data-close>閉じる</button>') + `
+    <div class="sh-body" style="padding-bottom:calc(18px + var(--sb))">
+      <button class="add-opt" data-add="work"><span class="ic" style="background:var(--work)">${ICON.work}</span><span><b>仕事を追加</b><small>指示・確認・討議など</small></span></button>
+      <button class="add-opt" data-add="private"><span class="ic" style="background:var(--priv)">${ICON.priv}</span><span><b>プライベートを追加</b><small>やること・買うもの</small></span></button>
+      <button class="add-opt" data-add="memo"><span class="ic" style="background:var(--memo)">${ICON.memo}</span><span><b>思いつきメモを追加</b><small>内容だけですぐ保存</small></span></button>
+    </div>`);
+  $$('[data-add]', entry.sheet).forEach(b => b.onclick = () => {
+    closeSheet(entry.wrap);
+    const k = b.dataset.add;
+    if (k === 'memo') openQuickMemo(); else openTaskForm({ type: k });
+  });
+}
+
+/* =========================================================
+   横断検索
+   ========================================================= */
+function openSearch() {
+  const S = DB.settings;
+  const allCats = [...new Set([...S.workCats, ...S.privCats, ...DB.tasks.map(t => t.category).filter(Boolean)])];
+  const allAsg = [...new Set([...S.assignees, ...DB.tasks.map(t => t.assignee).filter(Boolean)])];
+  const q = { type: 'all', status: 'all' };
+  const entry = openSheet(head('<button class="hbtn l" data-close>閉じる</button>', 'タスクを検索', '<button class="hbtn r" id="sClear">クリア</button>') + `
+    <div class="sh-body">
+      <div class="search" style="margin-bottom:10px">${ICON.search}<input class="search-in" id="sKw" type="search" placeholder="キーワード（内容・備考・理由など）"></div>
+      <div class="field"><div class="seg" id="sType">${optList(['すべて', '仕事', 'プライベート'], 'すべて', '')}</div></div>
+      <div class="field"><div class="opts small" id="sStatus">${optList(['すべて', '未完了', '継続', '完了', '期限超過'], 'すべて')}</div></div>
+      <details class="more"><summary>詳細条件（分類・担当者・日付・並び替え）</summary>
+        <div class="field"><div class="label">分類</div><select class="select" id="sCat"><option value="">すべて</option>${allCats.map(c => `<option>${esc(c)}</option>`).join('')}</select></div>
+        <div class="field"><div class="label">担当者</div><select class="select" id="sAsg"><option value="">すべて</option>${allAsg.map(c => `<option>${esc(c)}</option>`).join('')}</select></div>
+        <div class="field"><div class="label">登録日</div><div style="display:flex;gap:6px;align-items:center"><input type="date" class="input" id="sC1"><span>〜</span><input type="date" class="input" id="sC2"></div></div>
+        <div class="field"><div class="label">期日</div><div style="display:flex;gap:6px;align-items:center"><input type="date" class="input" id="sD1"><span>〜</span><input type="date" class="input" id="sD2"></div></div>
+        <div class="field"><div class="label">並び替え</div><select class="select" id="sSort">${Object.entries(SORTS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>
+      </details>
+      <div id="sRes"></div>
+    </div>`, { full: true, refresh: () => run() });
+  const s = entry.sheet;
+  const val = id => $('#' + id, s).value;
+  function run() {
+    const kw = val('sKw').trim(), type = picked($('#sType', s)), st = picked($('#sStatus', s));
+    const cat = val('sCat'), asg = val('sAsg'), c1 = val('sC1'), c2 = val('sC2'), d1 = val('sD1'), d2 = val('sD2');
+    const any = kw || type !== 'すべて' || st !== 'すべて' || cat || asg || c1 || c2 || d1 || d2;
+    let list = DB.tasks.filter(t =>
+      (type === 'すべて' || TYPE_LABEL[t.type] === type) &&
+      (st === 'すべて' || (st === '期限超過' ? isOverdue(t) : t.status === st)) &&
+      (!cat || t.category === cat) && (!asg || t.assignee === asg) &&
+      (!c1 || t.createdAt >= c1) && (!c2 || t.createdAt <= c2) &&
+      (!d1 || (t.due && t.due >= d1)) && (!d2 || (t.due && t.due <= d2)) && matchKw(t, kw));
+    list = sortTasks(list, val('sSort'));
+    const el = $('#sRes', s);
+    if (!any) { el.innerHTML = `<div class="empty">キーワードや条件を指定すると<br>仕事・プライベートを横断して検索します<br><small>（全${DB.tasks.length}件）</small></div>`; return; }
+    el.innerHTML = list.length ? `<div class="listmeta">${list.length}件</div>` + list.map(t => taskCard(t, { showType: true })).join('') : '<div class="empty"><b>該当するタスクはありません</b></div>';
+  }
+  ['sKw', 'sCat', 'sAsg', 'sC1', 'sC2', 'sD1', 'sD2', 'sSort'].forEach(id => { $('#' + id, s).addEventListener('input', run); $('#' + id, s).addEventListener('change', run); });
+  bindPick($('#sType', s), run); bindPick($('#sStatus', s), run);
+  $('#sClear', s).onclick = () => {
+    ['sKw', 'sCat', 'sAsg', 'sC1', 'sC2', 'sD1', 'sD2'].forEach(id => $('#' + id, s).value = '');
+    $('#sSort', s).value = 'due';
+    [['sType', 'すべて'], ['sStatus', 'すべて']].forEach(([id, v]) => $$('button', $('#' + id, s)).forEach(b => b.classList.toggle('on', b.dataset.v === v)));
+    run();
+  };
+  run();
+  $('#sKw', s).focus({ preventScroll: true });
+}
+
+/* =========================================================
+   設定
+   ========================================================= */
+const LIST_DEFS = {
+  workCats: { title: '仕事の分類', field: 'category', scope: t => t.type === 'work', min: 1 },
+  privCats: { title: 'プライベートの分類', field: 'category', scope: t => t.type === 'private', min: 1 },
+  memoCats: { title: '思いつきメモの分類', memoField: 'category', min: 1 },
+  assignees: { title: '担当者', field: 'assignee', scope: t => t.type === 'work', memoField: 'assignee', min: 0 },
+  priorities: { title: '優先順位（上ほど高い）', field: 'priority', scope: () => true, min: 1 },
+};
+function listEditorHtml(key) {
+  const arr = DB.settings[key];
+  return `<div class="bt-title">${LIST_DEFS[key].title}</div><div class="box">
+    ${arr.map((x, i) => `<div class="li-row"><span class="li-name">${esc(x)}</span>
+      ${i > 0 ? `<button class="li-btn" data-le="up" data-k="${key}" data-i="${i}" aria-label="上へ">↑</button>` : ''}
+      <button class="li-btn" data-le="ren" data-k="${key}" data-i="${i}">名前変更</button>
+      <button class="li-btn del" data-le="del" data-k="${key}" data-i="${i}">削除</button></div>`).join('')}
+    <div class="li-add"><input class="input" data-le-in="${key}" placeholder="追加する名前"><button class="btn primary sm" data-le="add" data-k="${key}">追加</button></div></div>`;
+}
+async function onListEdit(act, key, i, s) {
+  const arr = DB.settings[key], def = LIST_DEFS[key];
+  if (act === 'add') {
+    const inp = $(`[data-le-in="${key}"]`, s), name = inp.value.trim();
+    if (!name) { inp.focus(); return; }
+    if (arr.includes(name)) { toast('同じ名前がすでにあります'); return; }
+    arr.push(name); afterChange(); toast('追加しました');
+  } else if (act === 'up' && i > 0) {
+    [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; afterChange();
+  } else if (act === 'ren') {
+    const old = arr[i], nv = await promptDlg(`「${old}」の名前を変更`, old);
+    if (nv == null) return;
+    const name = nv.trim();
+    if (!name || name === old) return;
+    if (arr.includes(name)) { toast('同じ名前がすでにあります'); return; }
+    arr[i] = name;
+    let n = 0;
+    if (def.field) DB.tasks.forEach(t => { if (def.scope(t) && t[def.field] === old) { t[def.field] = name; n++; } });
+    if (def.memoField) DB.memos.forEach(m => { if (m[def.memoField] === old) { m[def.memoField] = name; n++; } });
+    afterChange(); toast(n ? `変更しました（登録済み${n}件にも反映）` : '変更しました');
+  } else if (act === 'del') {
+    if (arr.length <= def.min) { toast('最低1つは必要です'); return; }
+    const ok = await confirmDlg('削除しますか？', `「${arr[i]}」を選択肢から削除します。\n登録済みのタスクやメモの値はそのまま残ります。`, { okText: '削除する', danger: true });
+    if (!ok) return;
+    arr.splice(i, 1); afterChange();
+  }
+}
+function notifStatus() {
+  if (!('Notification' in window)) return 'この環境では未対応';
+  return { granted: '許可済み', denied: '拒否されています', default: '未許可' }[Notification.permission] || '—';
+}
+function openSettings() {
+  const entry = openSheet('', { full: true, refresh: () => draw() });
+  let scrollTop = 0;
+  function draw() {
+    const body0 = $('.sh-body', entry.sheet); if (body0) scrollTop = body0.scrollTop;
+    const S = DB.settings, n = S.notify;
+    const hasSample = DB.tasks.some(t => t.sample) || DB.memos.some(m => m.sample);
+    entry.sheet.innerHTML = head('<span class="hbtn"></span>', '設定', '<button class="hbtn r" data-close>完了</button>') + `
+      <div class="sh-body">
+        ${['workCats', 'privCats', 'memoCats', 'assignees', 'priorities'].map(listEditorHtml).join('')}
+
+        <div class="bt-title">通知・リマインダー</div>
+        <div class="box">
+          <label class="row"><span>通知を使う</span><input type="checkbox" class="sw" id="nOn" ${n.enabled ? 'checked' : ''}></label>
+          <label class="row"><span>期日の前日に通知</span><input type="checkbox" class="sw" id="nPre" ${n.dayBefore ? 'checked' : ''} ${n.enabled ? '' : 'disabled'}></label>
+          <label class="row"><span>期日の当日に通知</span><input type="checkbox" class="sw" id="nDay" ${n.dayOf ? 'checked' : ''} ${n.enabled ? '' : 'disabled'}></label>
+          <div class="row"><span class="k">通知の許可</span><span class="v">${notifStatus()}</span></div>
+          <button class="row act" id="nTest"><span>テスト通知を送る</span><span class="v">›</span></button>
+        </div>
+        <p class="help">アプリを開いたとき・画面に戻ったときに、明日／今日が期日のタスク（継続後の新しい期日を含む）をまとめて通知します。iPhoneでは Safari の共有ボタン →「ホーム画面に追加」で追加したアプリから通知を許可してください（iOS 16.4以降）。通知が使えない環境でも、ホーム画面で期限超過・今日・7日以内を確認できます。</p>
+
+        <div class="bt-title">データ管理</div>
+        <div class="box">
+          <button class="row act" id="dBackup"><span>バックアップを保存（JSON）</span><span class="v">${S.lastBackup ? '前回 ' + fmtDate(S.lastBackup) : '未実施'}</span></button>
+          <button class="row act" id="dRestore"><span>バックアップから復元</span><span class="v">›</span></button>
+          <button class="row act" id="dCsv"><span>タスクをCSVで出力</span><span class="v">›</span></button>
+          <button class="row act" id="dCsvM"><span>思いつきメモをCSVで出力</span><span class="v">›</span></button>
+          <button class="row act" id="dPrint"><span>タスク一覧を印刷・PDF保存</span><span class="v">›</span></button>
+        </div>
+        <input type="file" id="dFile" accept=".json,application/json" hidden>
+        <p class="help">データはこの端末のブラウザ内に保存され、アプリを閉じても消えません。iPhoneとPCで同じデータを使う場合は、一方で「バックアップを保存」→もう一方で「復元」してください。月1回程度のバックアップをおすすめします。</p>
+        <div class="box">
+          ${hasSample ? `<button class="row act danger" id="dSample"><span>サンプルデータを削除</span></button>` : ''}
+          <button class="row act danger" id="dReset"><span>すべてのデータを削除</span></button>
+        </div>
+        <p class="help" style="text-align:center">MY TASK v1.0 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
+      </div>`;
+    const s = entry.sheet;
+    $('.sh-body', s).scrollTop = scrollTop;
+    $$('[data-le]', s).forEach(b => b.onclick = () => onListEdit(b.dataset.le, b.dataset.k, +b.dataset.i, s));
+    $$('[data-le-in]', s).forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) onListEdit('add', inp.dataset.leIn, 0, s); }));
+    $('#nOn', s).onchange = async e => {
+      if (e.target.checked) {
+        if (!('Notification' in window)) { toast('この環境では通知を利用できません'); e.target.checked = false; return; }
+        const p = await Notification.requestPermission();
+        if (p !== 'granted') { toast('通知が許可されませんでした'); S.notify.enabled = false; afterChange(); return; }
+      }
+      S.notify.enabled = e.target.checked; afterChange(); checkNotifications();
+    };
+    $('#nPre', s).onchange = e => { S.notify.dayBefore = e.target.checked; save(); };
+    $('#nDay', s).onchange = e => { S.notify.dayOf = e.target.checked; save(); };
+    $('#nTest', s).onclick = async () => {
+      if (!('Notification' in window)) { toast('この環境では通知を利用できません'); return; }
+      if (Notification.permission !== 'granted') { const p = await Notification.requestPermission(); if (p !== 'granted') { toast('通知が許可されていません'); draw(); return; } }
+      showNotif('MY TASK テスト通知', '通知は正常に届いています', 'test'); draw();
+    };
+    $('#dBackup', s).onclick = backup;
+    $('#dRestore', s).onclick = () => $('#dFile', s).click();
+    $('#dFile', s).onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) restore(f); };
+    $('#dCsv', s).onclick = exportCsv;
+    $('#dCsvM', s).onclick = exportMemoCsv;
+    $('#dPrint', s).onclick = openPrint;
+    if ($('#dSample', s)) $('#dSample', s).onclick = async () => {
+      if (!await confirmDlg('サンプルデータを削除しますか？', '自分で登録したデータは残ります。', { okText: '削除する', danger: true })) return;
+      DB.tasks = DB.tasks.filter(t => !t.sample); DB.memos = DB.memos.filter(m => !m.sample);
+      afterChange(); toast('サンプルデータを削除しました');
+    };
+    $('#dReset', s).onclick = async () => {
+      if (!await confirmDlg('すべてのデータを削除しますか？', 'タスク・メモ・完了履歴がすべて消えます。\n先にバックアップを保存することをおすすめします。', { okText: '次へ', danger: true })) return;
+      if (!await confirmDlg('本当に削除しますか？', 'この操作は元に戻せません。', { okText: '完全に削除', danger: true })) return;
+      DB.tasks = []; DB.memos = []; afterChange(); toast('すべてのデータを削除しました');
+    };
+  }
+  draw();
+}
+
+/* =========================================================
+   バックアップ・復元・CSV・印刷
+   ========================================================= */
+async function shareOrDownload(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  if (mobile && navigator.canShare) {
+    try {
+      const file = new File([blob], filename, { type: mime });
+      if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return true; }
+    } catch (e) { if (e.name === 'AbortError') return false; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
+}
+async function backup() {
+  const data = { app: 'MY TASK', version: 1, exportedAt: new Date().toISOString(), data: DB };
+  const ok = await shareOrDownload(`mytask_backup_${today().replace(/-/g, '')}.json`, JSON.stringify(data, null, 1), 'application/json');
+  if (ok) { DB.settings.lastBackup = today(); afterChange(); toast('バックアップを保存しました'); }
+}
+function restore(file) {
+  const r = new FileReader();
+  r.onload = async () => {
+    let d;
+    try { d = JSON.parse(r.result); d = d.data || d; } catch (e) { toast('ファイルを読み込めませんでした'); return; }
+    if (!d || !Array.isArray(d.tasks) || !Array.isArray(d.memos)) { toast('MY TASKのバックアップではありません'); return; }
+    const ok = await confirmDlg('バックアップから復元しますか？', `タスク${d.tasks.length}件・メモ${d.memos.length}件で、現在のデータを置き換えます。`, { okText: '復元する', danger: true });
+    if (!ok) return;
+    localStorage.setItem(KEY, JSON.stringify(d));
+    load(); DB.settings.welcomed = true; afterChange(); toast('復元しました');
+  };
+  r.readAsText(file);
+}
+const csvCell = v => { v = String(v ?? ''); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+const toCsv = rows => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+function exportCsv() {
+  const head = ['種別', '登録日', '内容', '分類', '担当者', '期日', '当初の期日', '優先順位', '状態', '完了日', '継続回数', '継続履歴', '備考'];
+  const rows = sortTasks(DB.tasks, 'created').reverse().map(t => [TYPE_LABEL[t.type], t.createdAt, t.content, t.category, t.assignee, t.due, originalDue(t), t.priority, t.status, t.completedAt,
+    contCount(t), t.continuations.map((c, i) => `${i + 1}回目(${c.date}) ${c.prevDue || 'なし'}→${c.newDue} 理由:${c.reason}`).join(' / '), t.note]);
+  shareOrDownload(`mytask_tasks_${today().replace(/-/g, '')}.csv`, toCsv([head, ...rows]), 'text/csv');
+}
+function exportMemoCsv() {
+  const head = ['日付', '担当者', '内容', '分類', '状態', 'タスク化した日'];
+  const rows = [...DB.memos].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(m => [m.date, m.assignee, m.content, m.category, m.status, m.convertedAt]);
+  shareOrDownload(`mytask_memos_${today().replace(/-/g, '')}.csv`, toCsv([head, ...rows]), 'text/csv');
+}
+function openPrint() {
+  const targets = ['未完了（仕事＋プライベート）', '仕事（未完了）', 'プライベート（未完了）', '完了履歴', 'すべて'];
+  const entry = openSheet(head('<button class="hbtn l" data-close>閉じる</button>', '印刷・PDF保存', '') + `
+    <div class="sh-body">
+      <div class="label">印刷する範囲</div><div class="opts" id="pT" style="margin-bottom:16px">${optList(targets, targets[0])}</div>
+      <p class="help" style="margin:0">「印刷する」を押すと印刷画面が開きます。PDFで保存する場合は、iPhoneでは印刷画面右上の共有ボタン →「"ファイル"に保存」、PCでは送信先で「PDFに保存」を選んでください。</p>
+    </div>
+    <div class="sh-foot"><button class="btn primary" id="pGo">印刷する</button></div>`);
+  bindPick($('#pT', entry.sheet));
+  $('#pGo', entry.sheet).onclick = () => { buildPrint(picked($('#pT', entry.sheet))); setTimeout(() => window.print(), 50); };
+}
+function buildPrint(target) {
+  let list = DB.tasks;
+  if (target.startsWith('未完了')) list = list.filter(t => !isDone(t));
+  else if (target.startsWith('仕事')) list = list.filter(t => t.type === 'work' && !isDone(t));
+  else if (target.startsWith('プライベート')) list = list.filter(t => t.type === 'private' && !isDone(t));
+  else if (target === '完了履歴') list = list.filter(isDone);
+  const groups = ['work', 'private'].map(tp => [tp, sortTasks(list.filter(t => t.type === tp), 'due')]).filter(([, a]) => a.length);
+  const d = new Date();
+  $('#printArea').innerHTML = `<h1>タスク一覧</h1><div class="pm">対象：${esc(target)} ／ 出力日：${fmtDateFull(today())} ${pad(d.getHours())}:${pad(d.getMinutes())} ／ ${list.length}件</div>` +
+    (groups.length ? groups.map(([tp, arr]) => `<h2 class="${tp}">${TYPE_LABEL[tp]}（${arr.length}件）</h2><table>
+      <colgroup><col style="width:34%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:11%"><col style="width:7%"><col style="width:19%"></colgroup>
+      <thead><tr><th>内容</th><th>分類</th><th>担当者</th><th>登録日</th><th>期日</th><th>優先</th><th>状態</th></tr></thead><tbody>
+      ${arr.map(t => `<tr><td>${esc(t.content)}${t.note ? `<div class="n">備考：${esc(t.note)}</div>` : ''}${contCount(t) ? `<div class="n">継続：${t.continuations.map(c => `${fmtDate(c.prevDue, false) || 'なし'}→${fmtDate(c.newDue, false)}（${esc(c.reason)}）`).join('、')}</div>` : ''}</td>
+        <td>${esc(t.category)}</td><td>${esc(t.assignee)}</td><td>${fmtDate(t.createdAt, false)}</td><td>${t.due ? fmtDate(t.due) : '—'}${isOverdue(t) ? ' ※超過' : ''}</td><td class="c">${esc(t.priority)}</td>
+        <td>${esc(t.status)}${contCount(t) ? `（${contCount(t)}回）` : ''}${t.completedAt ? `<br>完了 ${fmtDate(t.completedAt, false)}` : ''}</td></tr>`).join('')}
+      </tbody></table>`).join('') : '<p>該当するタスクはありません</p>');
+}
+
+/* =========================================================
+   通知
+   ========================================================= */
+async function showNotif(title, body, tag) {
+  try {
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (reg) { await reg.showNotification(title, { body, tag, icon: 'icon-192.png', badge: 'icon-192.png' }); return; }
+  } catch (e) { }
+  try { new Notification(title, { body, tag }); } catch (e) { }
+}
+function checkNotifications() {
+  const n = DB.settings.notify;
+  if (!n.enabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const td = today(), tm = addDays(td, 1), sent = DB.settings.notified || (DB.settings.notified = {});
+  const dayItems = [], preItems = [];
+  DB.tasks.filter(t => !isDone(t) && t.due).forEach(t => {
+    const kd = `${t.id}|${t.due}|d`, kp = `${t.id}|${t.due}|p`;
+    if (n.dayOf && t.due === td && !sent[kd]) { dayItems.push(t); sent[kd] = td; }
+    if (n.dayBefore && t.due === tm && !sent[kp]) { preItems.push(t); sent[kp] = td; }
+  });
+  const body = arr => arr.slice(0, 5).map(t => `・${t.content}`).join('\n') + (arr.length > 5 ? `\nほか${arr.length - 5}件` : '');
+  if (dayItems.length) showNotif(`今日が期日のタスク ${dayItems.length}件`, body(dayItems), 'today-' + td);
+  if (preItems.length) showNotif(`明日が期日のタスク ${preItems.length}件`, body(preItems), 'tomorrow-' + td);
+  const limit = addDays(td, -7);
+  Object.keys(sent).forEach(k => { if (sent[k] < limit) delete sent[k]; });
+  if (dayItems.length || preItems.length) save();
+}
+
+/* =========================================================
+   サンプルデータ
+   ========================================================= */
+function addSamples() {
+  const td = today(), D = n => addDays(td, n);
+  const T = o => DB.tasks.push(newTask({ sample: true, ...o }));
+  T({ type: 'work', content: '見積書の内容を確認して営業部へ返信する', category: '確認', assignee: '自分', due: td, priority: '高', createdAt: D(-2) });
+  T({ type: 'work', content: '月次報告資料の作成を依頼', category: '指示', assignee: '田中', due: D(-2), priority: '中', createdAt: D(-9) });
+  T({ type: 'work', content: '来期の体制について部長と打ち合わせ', category: '討議', assignee: '自分', due: D(3), priority: '中', createdAt: D(-1) });
+  T({ type: 'work', content: '協力会社への発注書送付', category: '指示', assignee: '佐藤', due: D(2), priority: '高', createdAt: D(-12), status: '継続',
+    continuations: [{ date: D(-3), prevDue: D(-3), newDue: D(2), reason: '先方の担当者が不在のため回答待ち' }] });
+  T({ type: 'work', content: '会議室の予約', category: 'その他', assignee: '自分', due: D(-1), priority: '低', createdAt: D(-4), status: '完了', completedAt: D(-1), completedTs: Date.now() - 864e5 });
+  T({ type: 'private', content: '牛乳・卵', category: '買うもの', priority: '中' });
+  T({ type: 'private', content: '洗濯用洗剤', category: '買うもの', priority: '低' });
+  T({ type: 'private', content: '車検の予約をする', category: 'やること', due: D(5), priority: '高' });
+  T({ type: 'private', content: '年末の大掃除の計画', category: 'やること', due: D(20), priority: '低' });
+  DB.memos.push(newMemo({ sample: true, content: '点検報告書のテンプレートを見直したい', category: '仕事' }));
+  DB.memos.push(newMemo({ sample: true, content: '週末に本棚を整理する', category: 'プライベート', date: D(-1), ts: Date.now() - 864e5 }));
+}
+
+/* =========================================================
+   起動・イベント
+   ========================================================= */
+document.addEventListener('click', e => {
+  const chk = e.target.closest('[data-check]');
+  if (chk) { e.stopPropagation(); onCheck(chk.dataset.check, chk); return; }
+  const tc = e.target.closest('[data-task]');
+  if (tc) { openTaskDetail(tc.dataset.task); return; }
+  const mc = e.target.closest('[data-memo]');
+  if (mc) { openMemoDetail(mc.dataset.memo); return; }
+});
+$$('.tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+$('#fab').onclick = () => {
+  if (state.tab === 'work' || state.tab === 'private') openTaskForm({ type: state.tab });
+  else if (state.tab === 'memo') openQuickMemo();
+  else openAddChooser();
+};
+$('#btnSearch').onclick = openSearch;
+$('#btnSettings').onclick = openSettings;
+
+let lastDay = today();
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (today() !== lastDay) { lastDay = today(); render(); }
+  checkNotifications();
+});
+setInterval(() => { if (today() !== lastDay) { lastDay = today(); render(); } checkNotifications(); }, 10 * 60 * 1000);
+
+load();
+render();
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => { });
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
+setTimeout(checkNotifications, 1500);
+</script>
+</body>
+</html>
