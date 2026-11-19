@@ -1,5 +1,5 @@
 // MY TASK service worker
-const CACHE = 'mytask-v2';
+const CACHE = 'mytask-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

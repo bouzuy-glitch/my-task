@@ -391,8 +391,8 @@ function sortTasks(list, key) {
 }
 function matchKw(obj, kw, extra = []) {
   if (!kw) return true;
-  const dates = [obj.createdAt, obj.due, obj.completedAt, obj.date].filter(Boolean);
-  const hay = [obj.content, obj.note, obj.assignee, obj.category, obj.status, ...dates, ...dates.map(d => fmtDate(d, false)),
+  const dates = [obj.createdAt, obj.due, obj.completedAt, obj.date, obj.instructedAt].filter(Boolean);
+  const hay = [obj.content, obj.note, obj.assignee, obj.instructedTo, obj.category, obj.status, ...dates, ...dates.map(d => fmtDate(d, false)),
     ...(obj.continuations || []).map(c => c.reason), ...extra].join(' ').toLowerCase();
   return kw.toLowerCase().split(/[\s　]+/).filter(Boolean).every(w => hay.includes(w));
 }
@@ -503,6 +503,7 @@ function taskCard(t, { showType = false, mode = '' } = {}) {
   }
   if (t.category) c.push(`<span class="chip">${esc(t.category)}</span>`);
   if (t.type === 'work' && t.assignee) c.push(`<span class="chip">担当 ${esc(t.assignee)}</span>`);
+  if (t.type === 'work' && (t.instructedTo || t.instructedAt)) c.push(`<span class="chip work">指示${t.instructedTo ? '→' + esc(t.instructedTo) : '日'}${t.instructedAt ? ' ' + fmtDate(t.instructedAt, false) : ''}</span>`);
   if (mode !== 'done') c.push(prioChip(t.priority));
   if (n) c.push(`<span class="chip amber">継続${n}回</span>`);
   if (mode !== 'done') c.push(bellChip(t));
@@ -603,7 +604,7 @@ function renderHome() {
 
 /* ---------- 仕事 / プライベート ---------- */
 const FILTERS = {
-  work: [['active', '未完了'], ['all', 'すべて'], ['cont', '継続'], ['overdue', '期限超過'], ['done', '完了'], ['byAssignee', '担当者別'], ['byCat', '分類別']],
+  work: [['active', '未完了'], ['all', 'すべて'], ['cont', '継続'], ['overdue', '期限超過'], ['done', '完了'], ['byAssignee', '担当者別'], ['byIns', '指示先別'], ['byCat', '分類別']],
   private: [['active', '未完了'], ['today', '今日'], ['week', '今週'], ['shop', '買うもの'], ['overdue', '期限超過'], ['done', '完了'], ['all', 'すべて']],
 };
 function filterTasks(type, f) {
@@ -623,7 +624,7 @@ function renderTaskTab(type) {
   const st = state[type];
   const sorts = Object.entries(SORTS).filter(([k]) => type === 'work' || k !== 'assignee');
   $('#view').innerHTML = `
-    <div class="fbar">${FILTERS[type].map(([k, l]) => `<button class="fchip ${st.filter === k ? 'on' : ''}" data-f="${k}">${l}${['byAssignee', 'byCat'].includes(k) ? '' : `<span class="fc">${filterTasks(type, k).length}</span>`}</button>`).join('')}</div>
+    <div class="fbar">${FILTERS[type].map(([k, l]) => `<button class="fchip ${st.filter === k ? 'on' : ''}" data-f="${k}">${l}${['byAssignee', 'byIns', 'byCat'].includes(k) ? '' : `<span class="fc">${filterTasks(type, k).length}</span>`}</button>`).join('')}</div>
     <div class="searchrow"><div class="search">${ICON.search}<input class="search-in" id="q" type="search" placeholder="キーワード・日付で検索" value="${esc(st.q)}"></div>
       <select class="sort" id="sort">${sorts.map(([k, l]) => `<option value="${k}" ${st.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     ${type === 'private' && st.filter === 'shop' ? `<div class="inline-add"><input class="input" id="shopIn" placeholder="買うものを入力してすぐ追加" enterkeyhint="done"><button class="btn priv sm" id="shopAdd">追加</button></div>` : ''}
@@ -656,12 +657,12 @@ function renderTaskList(type) {
     return;
   }
   const mode = st.filter === 'done' ? 'done' : '';
-  if (st.filter === 'byAssignee' || st.filter === 'byCat') {
-    const key = st.filter === 'byAssignee' ? 'assignee' : 'category';
-    const order = st.filter === 'byAssignee' ? DB.settings.assignees : DB.settings.workCats;
+  if (['byAssignee', 'byIns', 'byCat'].includes(st.filter)) {
+    const key = { byAssignee: 'assignee', byIns: 'instructedTo', byCat: 'category' }[st.filter];
+    const order = st.filter === 'byCat' ? DB.settings.workCats : DB.settings.assignees;
     const g = new Map();
-    list.forEach(t => { const k = t[key] || '（未設定）'; if (!g.has(k)) g.set(k, []); g.get(k).push(t); });
-    const keys = [...g.keys()].sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, 'ja'); });
+    list.forEach(t => { const k = t[key] || (key === 'instructedTo' ? '（指示先なし）' : '（未設定）'); if (!g.has(k)) g.set(k, []); g.get(k).push(t); });
+    const keys = [...g.keys()].sort((a, b) => { const ia = a.startsWith('（') ? 9999 : order.indexOf(a), ib = b.startsWith('（') ? 9999 : order.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, 'ja'); });
     el.innerHTML = `<div class="listmeta">未完了のみ表示</div>` + keys.map(k => `<div class="sec"><span class="dot blue"></span>${esc(k)}<span class="cnt">${g.get(k).length}</span></div>${g.get(k).map(t => taskCard(t)).join('')}`).join('');
   } else {
     el.innerHTML = `<div class="listmeta">${list.length}件</div>` + list.map(t => taskCard(t, { mode })).join('');
@@ -787,7 +788,7 @@ function openTaskDetail(id) {
     const rows = [
       ['登録日', fmtDateFull(t.createdAt)],
       ['分類', esc(t.category) || '—'],
-      ...(isWork ? [['担当者', esc(t.assignee) || '—']] : []),
+      ...(isWork ? [['担当者', esc(t.assignee) || '—'], ['指示日', t.instructedAt ? fmtDateFull(t.instructedAt) : '—'], ['指示先', esc(t.instructedTo) || '—']] : []),
       ['期日', t.due ? `${fmtDateFull(t.due)}${!done && relDue(t.due) ? `<br><small>${relDue(t.due)}</small>` : ''}` : '設定なし', ov ? 'red' : ''],
       ...(n ? [['当初の期日', originalDue(t) ? fmtDateFull(originalDue(t)) : 'なし'], ['継続回数', `${n}回`]] : []),
       ['優先順位', esc(t.priority) || '—'],
@@ -851,7 +852,11 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
         <textarea class="textarea" id="fContent" rows="3" placeholder="${isWork ? '例）見積書を確認して返信する' : '例）牛乳を買う'}">${esc(v.content)}</textarea><div class="err" id="eContent"></div></div>
       <div class="field"><div class="label">分類</div><div class="opts" id="fCat">${optList(cats, v.category)}</div></div>
       ${isWork ? `<div class="field"><div class="label">担当者</div><div class="opts" id="fAsgOpts">${optList(S.assignees, v.assignee)}</div>
-        <input class="input" id="fAsg" style="margin-top:8px" placeholder="上にない場合は入力" value="${esc(v.assignee)}"></div>` : ''}
+        <input class="input" id="fAsg" style="margin-top:8px" placeholder="上にない場合は入力" value="${esc(v.assignee)}"></div>
+      <div class="field"><div class="label">指示先<span class="hint">誰に指示したか</span></div><div class="opts" id="fInsOpts">${optList(S.assignees.filter(a => a !== '自分'), v.instructedTo || '')}</div>
+        <input class="input" id="fIns" style="margin-top:8px" placeholder="上にない場合は入力" value="${esc(v.instructedTo || '')}"></div>
+      <div class="field"><div class="label">指示日</div><input type="date" class="input" id="fInsDate" value="${v.instructedAt || ''}">
+        <div class="opts quick" id="fInsQ"><button type="button" class="opt" data-d="0">今日</button><button type="button" class="opt" data-d="-1">昨日</button><button type="button" class="opt" data-d="">クリア</button></div></div>` : ''}
       <div class="field" id="dueField"><div class="label">期日<span class="hint">${isWork ? '' : '任意'}</span></div>
         <input type="date" class="input" id="fDue" value="${v.due || ''}">
         <div class="opts quick" id="fDueQ"><button type="button" class="opt" data-d="0">今日</button><button type="button" class="opt" data-d="1">明日</button><button type="button" class="opt" data-d="7">1週間後</button><button type="button" class="opt" data-d="">期日なし</button></div></div>
@@ -872,6 +877,12 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
   if (isWork) {
     const asg = $('#fAsg', s), ao = $('#fAsgOpts', s);
     bindPick(ao, val => asg.value = val, true);
+    const ins = $('#fIns', s), io = $('#fInsOpts', s), insD = $('#fInsDate', s);
+    const autoDate = () => { if (ins.value.trim() && !insD.value) insD.value = today(); };
+    bindPick(io, val => { ins.value = val; autoDate(); }, true);
+    ins.addEventListener('input', () => $$('button', io).forEach(b => b.classList.toggle('on', b.dataset.v === ins.value.trim())));
+    ins.addEventListener('change', autoDate);
+    $('#fInsQ', s).addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; insD.value = b.dataset.d === '' ? '' : addDays(today(), +b.dataset.d); });
     asg.addEventListener('input', () => $$('button', ao).forEach(b => b.classList.toggle('on', b.dataset.v === asg.value.trim())));
   }
   const fDue = $('#fDue', s);
@@ -903,10 +914,12 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
     const alertVal = readAlert(s);
     const vals = {
       content, category: picked($('#fCat', s)), priority: picked($('#fPrio', s)),
-      assignee: isWork ? $('#fAsg', s).value.trim() : '', note: $('#fNote', s).value.trim(),
+      assignee: isWork ? $('#fAsg', s).value.trim() : '',
+      instructedTo: isWork ? $('#fIns', s).value.trim() : '', instructedAt: isWork ? $('#fInsDate', s).value : '', note: $('#fNote', s).value.trim(),
       createdAt: $('#fCreated', s).value || today(),
     };
     if (isWork && vals.assignee && !S.assignees.includes(vals.assignee)) S.assignees.push(vals.assignee);
+    if (isWork && vals.instructedTo && !/[、,]/.test(vals.instructedTo) && !S.assignees.includes(vals.instructedTo)) S.assignees.push(vals.instructedTo);
 
     if (!t) {
       const nt = newTask({ type, ...vals, due: fDue.value, fromMemoId: memoId || null });
@@ -1106,7 +1119,7 @@ const LIST_DEFS = {
   workCats: { title: '仕事の分類', field: 'category', scope: t => t.type === 'work', min: 1 },
   privCats: { title: 'プライベートの分類', field: 'category', scope: t => t.type === 'private', min: 1 },
   memoCats: { title: '思いつきメモの分類', memoField: 'category', min: 1 },
-  assignees: { title: '担当者', field: 'assignee', scope: t => t.type === 'work', memoField: 'assignee', min: 0 },
+  assignees: { title: '担当者・指示先', field: 'assignee', scope: t => t.type === 'work', memoField: 'assignee', min: 0 },
   priorities: { title: '優先順位（上ほど高い）', field: 'priority', scope: () => true, min: 1 },
 };
 function listEditorHtml(key) {
@@ -1137,6 +1150,7 @@ async function onListEdit(act, key, i, s) {
     let n = 0;
     if (def.field) DB.tasks.forEach(t => { if (def.scope(t) && t[def.field] === old) { t[def.field] = name; n++; } });
     if (def.memoField) DB.memos.forEach(m => { if (m[def.memoField] === old) { m[def.memoField] = name; n++; } });
+    if (key === 'assignees') DB.tasks.forEach(t => { if (t.instructedTo === old) { t.instructedTo = name; n++; } });
     afterChange(); toast(n ? `変更しました（登録済み${n}件にも反映）` : '変更しました');
   } else if (act === 'del') {
     if (arr.length <= def.min) { toast('最低1つは必要です'); return; }
@@ -1185,7 +1199,7 @@ function openSettings() {
           ${hasSample ? `<button class="row act danger" id="dSample"><span>サンプルデータを削除</span></button>` : ''}
           <button class="row act danger" id="dReset"><span>すべてのデータを削除</span></button>
         </div>
-        <p class="help" style="text-align:center">MY TASK v1.1 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
+        <p class="help" style="text-align:center">MY TASK v1.2 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
       </div>`;
     const s = entry.sheet;
     $('.sh-body', s).scrollTop = scrollTop;
@@ -1266,8 +1280,8 @@ function restore(file) {
 const csvCell = v => { v = String(v ?? ''); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 const toCsv = rows => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 function exportCsv() {
-  const head = ['種別', '登録日', '内容', '分類', '担当者', '期日', '当初の期日', '優先順位', '状態', '完了日', '継続回数', '継続履歴', '備考', 'アラート'];
-  const rows = sortTasks(DB.tasks, 'created').reverse().map(t => [TYPE_LABEL[t.type], t.createdAt, t.content, t.category, t.assignee, t.due, originalDue(t), t.priority, t.status, t.completedAt,
+  const head = ['種別', '登録日', '内容', '分類', '担当者', '指示日', '指示先', '期日', '当初の期日', '優先順位', '状態', '完了日', '継続回数', '継続履歴', '備考', 'アラート'];
+  const rows = sortTasks(DB.tasks, 'created').reverse().map(t => [TYPE_LABEL[t.type], t.createdAt, t.content, t.category, t.assignee, t.instructedAt || '', t.instructedTo || '', t.due, originalDue(t), t.priority, t.status, t.completedAt,
     contCount(t), t.continuations.map((c, i) => `${i + 1}回目(${c.date}) ${c.prevDue || 'なし'}→${c.newDue} 理由:${c.reason}`).join(' / '), t.note, (t.alertAt || '').replace('T', ' ')]);
   shareOrDownload(`mytask_tasks_${today().replace(/-/g, '')}.csv`, toCsv([head, ...rows]), 'text/csv');
 }
@@ -1300,7 +1314,7 @@ function buildPrint(target) {
       <colgroup><col style="width:34%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:11%"><col style="width:7%"><col style="width:19%"></colgroup>
       <thead><tr><th>内容</th><th>分類</th><th>担当者</th><th>登録日</th><th>期日</th><th>優先</th><th>状態</th></tr></thead><tbody>
       ${arr.map(t => `<tr><td>${esc(t.content)}${t.note ? `<div class="n">備考：${esc(t.note)}</div>` : ''}${contCount(t) ? `<div class="n">継続：${t.continuations.map(c => `${fmtDate(c.prevDue, false) || 'なし'}→${fmtDate(c.newDue, false)}（${esc(c.reason)}）`).join('、')}</div>` : ''}</td>
-        <td>${esc(t.category)}</td><td>${esc(t.assignee)}</td><td>${fmtDate(t.createdAt, false)}</td><td>${t.due ? fmtDate(t.due) : '—'}${isOverdue(t) ? ' ※超過' : ''}</td><td class="c">${esc(t.priority)}</td>
+        <td>${esc(t.category)}</td><td>${esc(t.assignee)}${t.instructedTo || t.instructedAt ? `<div class="n">指示→${esc(t.instructedTo || '')} ${t.instructedAt ? fmtDate(t.instructedAt, false) : ''}</div>` : ''}</td><td>${fmtDate(t.createdAt, false)}</td><td>${t.due ? fmtDate(t.due) : '—'}${isOverdue(t) ? ' ※超過' : ''}</td><td class="c">${esc(t.priority)}</td>
         <td>${esc(t.status)}${contCount(t) ? `（${contCount(t)}回）` : ''}${t.completedAt ? `<br>完了 ${fmtDate(t.completedAt, false)}` : ''}</td></tr>`).join('')}
       </tbody></table>`).join('') : '<p>該当するタスクはありません</p>');
 }
@@ -1457,7 +1471,7 @@ function addSamples() {
   const td = today(), D = n => addDays(td, n);
   const T = o => DB.tasks.push(newTask({ sample: true, ...o }));
   T({ type: 'work', content: '見積書の内容を確認して営業部へ返信する', category: '確認', assignee: '自分', due: td, priority: '高', createdAt: D(-2) });
-  T({ type: 'work', content: '月次報告資料の作成を依頼', category: '指示', assignee: '田中', due: D(-2), priority: '中', createdAt: D(-9) });
+  T({ type: 'work', content: '月次報告資料の作成を依頼', category: '指示', assignee: '自分', instructedTo: '田中', instructedAt: D(-9), due: D(-2), priority: '中', createdAt: D(-9) });
   T({ type: 'work', content: '来期の体制について部長と打ち合わせ', category: '討議', assignee: '自分', due: D(3), priority: '中', createdAt: D(-1) });
   T({ type: 'work', content: '協力会社への発注書送付', category: '指示', assignee: '佐藤', due: D(2), priority: '高', createdAt: D(-12), status: '継続',
     continuations: [{ date: D(-3), prevDue: D(-3), newDue: D(2), reason: '先方の担当者が不在のため回答待ち' }] });
