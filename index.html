@@ -111,6 +111,12 @@ details.fold[open]>summary .arrow{transform:rotate(90deg)}
 .chip.hi{background:#FDE8E4;color:#C2410C}
 .chip.lo{background:#F1F3F6;color:#8A95A3}
 .chip.today{background:var(--navy);color:#fff}
+.chip.bell{background:#FFF0E0;color:#C25E00;font-weight:800}
+.chip.bell.rang{background:var(--red);color:#fff}
+.alert-row{display:flex;gap:8px}.alert-row .input{flex:1;min-width:0}
+.al-item{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;border-left:4px solid var(--memo)}
+.al-btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.cal-hint{font-size:12px;color:var(--sub);font-weight:500}
 .listmeta{font-size:12.5px;color:var(--sub);margin:2px 4px 6px;font-weight:600}
 .memo-card{padding:12px 14px;margin-bottom:8px;border-left:4px solid var(--memo);cursor:pointer}
 .memo-card.converted{border-left-color:#E7C9A9}
@@ -319,6 +325,10 @@ const fmtDate = (s, wd = true) => { if (!s) return ''; const d = parse(s); const
 const fmtDateFull = s => { if (!s) return ''; const d = parse(s); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${WD[d.getDay()]}）`; };
 const relDue = s => { const n = diffDays(today(), s); if (n === 0) return '今日'; if (n === 1) return '明日'; if (n < 0) return `${-n}日超過`; if (n <= 7) return `${n}日後`; return ''; };
 const clone = o => JSON.parse(JSON.stringify(o));
+const hm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const nowLocal = () => { const d = new Date(); return `${ymd(d)}T${hm(d)}`; };
+const parseDT = s => { const [d, t] = s.split('T'); const dt = parse(d); const [h, m] = (t || '00:00').split(':').map(Number); dt.setHours(h, m, 0, 0); return dt; };
+const fmtAlert = s => { if (!s) return ''; const [d, t] = s.split('T'); const n = diffDays(today(), d); return (n === 0 ? '今日' : n === 1 ? '明日' : fmtDate(d)) + ' ' + t; };
 
 const ICON = {
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
@@ -342,6 +352,7 @@ const DEFAULT_SETTINGS = {
   notified: {},
   welcomed: false,
   lastBackup: null,
+  alertTime: '09:00',
 };
 let DB;
 function load() {
@@ -447,6 +458,7 @@ function afterChange() {
   save();
   render();
   sheets.forEach(s => s.refresh && s.refresh());
+  scheduleAlerts();
 }
 const head = (left, title, right) => `<div class="sh-grab"></div><div class="sh-head">${left || '<span class="hbtn"></span>'}<div class="sh-title">${title}</div>${right || '<span class="hbtn"></span>'}</div>`;
 
@@ -493,6 +505,7 @@ function taskCard(t, { showType = false, mode = '' } = {}) {
   if (t.type === 'work' && t.assignee) c.push(`<span class="chip">担当 ${esc(t.assignee)}</span>`);
   if (mode !== 'done') c.push(prioChip(t.priority));
   if (n) c.push(`<span class="chip amber">継続${n}回</span>`);
+  if (mode !== 'done') c.push(bellChip(t));
   return `<div class="card task ${t.type} ${done ? 'done' : ''} ${ov ? 'overdue' : ''}" data-task="${t.id}">
     <button class="check" data-check="${t.id}" aria-label="${done ? '未完了に戻す' : '完了にする'}"><span>${ICON.check}</span></button>
     <div class="card-body"><div class="card-title">${esc(t.content)}</div><div class="chips">${c.join('')}</div></div></div>`;
@@ -501,7 +514,7 @@ function memoCard(m) {
   const conv = m.status === 'タスク化済み';
   return `<div class="card memo-card ${conv ? 'converted' : ''}" data-memo="${m.id}"><div class="memo-text">${esc(m.content)}</div>
     <div class="chips"><span class="chip">${fmtDate(m.date)}</span>${m.category ? `<span class="chip memo">${esc(m.category)}</span>` : ''}
-    ${m.assignee && m.assignee !== '自分' ? `<span class="chip">担当 ${esc(m.assignee)}</span>` : ''}${conv ? '<span class="chip green">タスク化済み</span>' : ''}</div></div>`;
+    ${m.assignee && m.assignee !== '自分' ? `<span class="chip">担当 ${esc(m.assignee)}</span>` : ''}${conv ? '<span class="chip green">タスク化済み</span>' : ''}${bellChip(m)}</div></div>`;
 }
 
 /* =========================================================
@@ -528,7 +541,7 @@ function render() {
   const ovP = DB.tasks.filter(t => t.type === 'private' && isOverdue(t)).length;
   const memoN = DB.memos.filter(m => m.status === '未整理').length;
   setBadge('work', ovW); setBadge('private', ovP); setBadge('memo', memoN);
-  setBadge('home', 0);
+  setBadge('home', pendingAlerts().length);
 
   const v = $('#view');
   if (state.tab === 'home') v.innerHTML = renderHome();
@@ -571,6 +584,9 @@ function renderHome() {
     return `<div class="sec"><span class="dot ${dot}"></span>${title}<span class="cnt">${list.length}</span></div>` +
       (list.length ? list.map(t => taskCard(t, { showType: true })).join('') : `<div class="empty-s">${emptyText}</div>`);
   };
+  const pend = pendingAlerts();
+  if (pend.length) h += `<div class="sec"><span class="dot red"></span>⏰ アラート<span class="cnt">${pend.length}</span><button class="more" onclick="ackAll()">すべて確認</button></div>` +
+    pend.map(o => o.kind === 'task' ? taskCard(o.x, { showType: true }) : memoCard(o.x)).join('');
   h += sec('期限超過', 'red', overdue);
   h += sec('今日が期日', 'navy', todays, '今日が期日のタスクはありません');
   h += sec('今後7日以内', 'blue', week);
@@ -775,6 +791,7 @@ function openTaskDetail(id) {
       ['期日', t.due ? `${fmtDateFull(t.due)}${!done && relDue(t.due) ? `<br><small>${relDue(t.due)}</small>` : ''}` : '設定なし', ov ? 'red' : ''],
       ...(n ? [['当初の期日', originalDue(t) ? fmtDateFull(originalDue(t)) : 'なし'], ['継続回数', `${n}回`]] : []),
       ['優先順位', esc(t.priority) || '—'],
+      ...(t.alertAt && !done ? [['アラート', fmtAlert(t.alertAt) + (t.alertFired ? '<br><small>通知済み</small>' : '')]] : []),
       ...(done ? [['完了日', fmtDateFull(t.completedAt)]] : []),
     ];
     const memo = t.fromMemoId && getMemo(t.fromMemoId);
@@ -786,6 +803,7 @@ function openTaskDetail(id) {
         ${t.note ? `<div class="bt-title">備考</div><div class="note-box">${esc(t.note)}</div>` : ''}
         ${n ? `<div class="bt-title">継続履歴</div><div class="tl">${t.continuations.map((c, i) => `<div class="tl-item"><div class="tl-h">${i + 1}回目の継続 ・ ${fmtDate(c.date)} に処理</div>
           <div class="tl-due">${c.prevDue ? fmtDate(c.prevDue) : '期日なし'} → ${fmtDate(c.newDue)}</div><div class="tl-r">理由：${esc(c.reason)}</div></div>`).join('')}</div>` : ''}
+        ${t.alertAt && !done ? calBtn() : ''}
         ${memo ? `<button class="linkbtn" data-memo="${memo.id}">元の思いつきメモを見る ›</button>` : ''}
         <button class="del-link" id="dDel">このタスクを削除</button>
       </div>
@@ -798,6 +816,7 @@ function openTaskDetail(id) {
     if ($('#dReopen', s)) $('#dReopen', s).onclick = () => reopenTask(id);
     if ($('#dDone', s)) $('#dDone', s).onclick = () => { closeSheet(entry.wrap); completeTask(id); };
     if ($('#dCont', s)) $('#dCont', s).onclick = () => openTaskForm({ id, cont: true });
+    if ($('#dCal', s)) $('#dCal', s).onclick = () => addToCalendar(t, 'task');
   }
   draw();
 }
@@ -811,7 +830,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
   type = t ? t.type : type;
   const isWork = type === 'work';
   const cats = isWork ? S.workCats : S.privCats;
-  const v = t ? { ...t } : newTask({ type, content: prefill.content || '', category: prefill.category || cats[0] || '', assignee: isWork ? (prefill.assignee || S.assignees[0] || '') : '' });
+  const v = t ? { ...t } : newTask({ type, alertAt: prefill.alertAt || '', content: prefill.content || '', category: prefill.category || cats[0] || '', assignee: isWork ? (prefill.assignee || S.assignees[0] || '') : '' });
   const status0 = t ? t.status : '未完了';
   let status = cont ? '継続' : status0;
   const contRequired = () => cont || status0 !== '継続';
@@ -836,6 +855,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
       <div class="field" id="dueField"><div class="label">期日<span class="hint">${isWork ? '' : '任意'}</span></div>
         <input type="date" class="input" id="fDue" value="${v.due || ''}">
         <div class="opts quick" id="fDueQ"><button type="button" class="opt" data-d="0">今日</button><button type="button" class="opt" data-d="1">明日</button><button type="button" class="opt" data-d="7">1週間後</button><button type="button" class="opt" data-d="">期日なし</button></div></div>
+      ${alertFieldHtml(v.alertAt, true)}
       <div class="field"><div class="label">優先順位</div><div class="seg" id="fPrio">${optList(S.priorities, v.priority, '')}</div></div>
       <details class="more" ${t && (t.note) ? 'open' : ''}><summary>備考・登録日</summary>
         <div class="field"><div class="label">備考</div><textarea class="textarea" id="fNote" rows="3" placeholder="補足事項など">${esc(v.note)}</textarea></div>
@@ -855,6 +875,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
     asg.addEventListener('input', () => $$('button', ao).forEach(b => b.classList.toggle('on', b.dataset.v === asg.value.trim())));
   }
   const fDue = $('#fDue', s);
+  bindAlertField(s, () => ($('#fNewDue', s) && $('#fNewDue', s).value) || fDue.value);
   $('#fDueQ', s).addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; fDue.value = b.dataset.d === '' ? '' : addDays(today(), +b.dataset.d); });
 
   function syncStatus() {
@@ -879,6 +900,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
     const content = fContent.value.trim();
     $$('.err', s).forEach(e => e.textContent = '');
     if (!content) { $('#eContent', s).textContent = '内容を入力してください'; fContent.focus(); return; }
+    const alertVal = readAlert(s);
     const vals = {
       content, category: picked($('#fCat', s)), priority: picked($('#fPrio', s)),
       assignee: isWork ? $('#fAsg', s).value.trim() : '', note: $('#fNote', s).value.trim(),
@@ -888,8 +910,9 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
 
     if (!t) {
       const nt = newTask({ type, ...vals, due: fDue.value, fromMemoId: memoId || null });
+      applyAlert(nt, alertVal);
       DB.tasks.push(nt);
-      if (memoId) { const m = getMemo(memoId); if (m) { m.status = 'タスク化済み'; m.taskId = nt.id; m.convertedAt = today(); } }
+      if (memoId) { const m = getMemo(memoId); if (m) { m.status = 'タスク化済み'; m.taskId = nt.id; m.convertedAt = today(); m.alertAt = ''; m.alertFired = m.alertAck = false; } }
       closeSheet(entry.wrap); afterChange();
       toast(memoId ? 'メモをタスクにしました' : '登録しました');
       return;
@@ -903,15 +926,19 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
         if (bad) { $('#contBox', s).scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
         t.continuations.push({ date: today(), prevDue: t.due || '', newDue: nd, reason });
         Object.assign(t, vals, { due: nd, status: '継続', completedAt: null, completedTs: null });
+        applyAlert(t, alertVal);
         closeSheet(entry.wrap); afterChange(); toast(`継続にしました（${contCount(t)}回目）`);
         return;
       }
       Object.assign(t, vals, { due: fDue.value, status: '継続', completedAt: null, completedTs: null });
+      applyAlert(t, alertVal);
     } else if (status === '完了') {
       if (t.status !== '完了') { t.completedAt = today(); t.completedTs = Date.now(); }
       Object.assign(t, vals, { due: fDue.value, status: '完了' });
+      applyAlert(t, alertVal);
     } else {
       Object.assign(t, vals, { due: fDue.value, status: '未完了', completedAt: null, completedTs: null });
+      applyAlert(t, alertVal);
     }
     closeSheet(entry.wrap); afterChange(); toast('保存しました');
   };
@@ -934,8 +961,10 @@ function openMemoDetail(id) {
           <div class="row"><span class="k">日付</span><span class="v">${fmtDateFull(m.date)}</span></div>
           <div class="row"><span class="k">担当者</span><span class="v">${esc(m.assignee) || '—'}</span></div>
           <div class="row"><span class="k">分類</span><span class="v">${esc(m.category) || '—'}</span></div>
+          ${m.alertAt ? `<div class="row"><span class="k">アラート</span><span class="v">${fmtAlert(m.alertAt)}${m.alertFired ? '<br><small>通知済み</small>' : ''}</span></div>` : ''}
           ${m.convertedAt ? `<div class="row"><span class="k">タスク化した日</span><span class="v">${fmtDateFull(m.convertedAt)}</span></div>` : ''}
         </div>
+        ${m.alertAt ? calBtn() : ''}
         ${task ? `<button class="linkbtn" data-task="${task.id}">変換したタスクを開く ›</button>` : (m.taskId ? '<div class="empty-s">変換先のタスクは削除されています</div>' : '')}
         <button class="del-link" id="mDel">このメモを削除</button>
       </div>
@@ -947,9 +976,10 @@ function openMemoDetail(id) {
       DB.memos = DB.memos.filter(x => x.id !== id);
       closeSheet(entry.wrap); afterChange(); toast('削除しました');
     };
+    if ($('#dCal', s)) $('#dCal', s).onclick = () => addToCalendar(m, 'memo');
     const conv = async type => {
       if (m.status === 'タスク化済み' && !await confirmDlg('すでにタスク化済みです', 'もう一度タスクを作成しますか？', { okText: '作成する' })) return;
-      openTaskForm({ type, memoId: id, prefill: { content: m.content, assignee: m.assignee } });
+      openTaskForm({ type, memoId: id, prefill: { content: m.content, assignee: m.assignee, alertAt: m.alertFired ? '' : (m.alertAt || '') } });
     };
     $('#mToWork', s).onclick = () => conv('work');
     $('#mToPriv', s).onclick = () => conv('private');
@@ -963,6 +993,7 @@ function openMemoForm(id) {
       <div class="field"><div class="label">内容<span class="req">必須</span></div><textarea class="textarea" id="mContent" rows="4">${esc(m.content)}</textarea><div class="err" id="emContent"></div></div>
       <div class="field"><div class="label">分類</div><div class="opts" id="mCat">${optList(S.memoCats, m.category)}</div></div>
       <div class="field"><div class="label">担当者</div><div class="opts" id="mAsgOpts">${optList(S.assignees, m.assignee)}</div><input class="input" id="mAsg" style="margin-top:8px" value="${esc(m.assignee)}" placeholder="自分 または任意の担当者"></div>
+      ${alertFieldHtml(m.alertAt, false)}
       <div class="field"><div class="label">日付</div><input type="date" class="input" id="mDate" value="${m.date}"></div>
       <div class="field"><div class="label">状態</div><div class="seg" id="mStatus">${optList(['未整理', 'タスク化済み'], m.status, '')}</div></div>
     </div>
@@ -971,10 +1002,12 @@ function openMemoForm(id) {
   bindPick($('#mCat', s), null, true); bindPick($('#mStatus', s));
   const asg = $('#mAsg', s);
   bindPick($('#mAsgOpts', s), v => asg.value = v, true);
+  bindAlertField(s);
   $('#mSave', s).onclick = () => {
     const c = $('#mContent', s).value.trim();
     if (!c) { $('#emContent', s).textContent = '内容を入力してください'; return; }
     Object.assign(m, { content: c, category: picked($('#mCat', s)), assignee: asg.value.trim(), date: $('#mDate', s).value || m.date, status: picked($('#mStatus', s)) || m.status });
+    applyAlert(m, readAlert(s));
     closeSheet(entry.wrap); afterChange(); toast('保存しました');
   };
 }
@@ -984,14 +1017,19 @@ function openQuickMemo() {
     <div class="sh-body" style="--acc:var(--memo)">
       <textarea class="textarea" id="qText" rows="5" placeholder="思いついたことを入力（内容だけで保存できます）"></textarea>
       <div class="label" style="margin-top:14px">分類<span class="hint">任意</span></div><div class="opts small" id="qCat">${optList(DB.settings.memoCats, '')}</div>
+      <div class="label" style="margin-top:14px">アラート<span class="hint">任意</span></div><div class="opts small" id="qAl">${[['h1', '1時間後'], ['tonight', '今夜20時'], ['tm', '明日 ' + DB.settings.alertTime]].map(([k, l]) => `<button type="button" class="opt" data-v="${k}">${l}</button>`).join('')}</div>
     </div>
     <div class="sh-foot"><button class="btn memo" id="qSave">保存する</button></div>`);
   const s = entry.sheet, ta = $('#qText', s);
   ta.focus({ preventScroll: true });
   bindPick($('#qCat', s), v => cat = v, true);
+  let qal = '';
+  bindPick($('#qAl', s), v => qal = v, true);
   const go = () => {
     const v = ta.value.trim(); if (!v) { ta.focus(); return; }
-    DB.memos.push(newMemo({ content: v, category: cat }));
+    const mm = newMemo({ content: v, category: cat });
+    if (qal) applyAlert(mm, quickAlert(qal));
+    DB.memos.push(mm);
     closeSheet(entry.wrap); afterChange(); toast('メモを保存しました');
   };
   $('#qSave', s).onclick = go; $('#qSave2', s).onclick = go;
@@ -1126,11 +1164,12 @@ function openSettings() {
         <div class="box">
           <label class="row"><span>通知を使う</span><input type="checkbox" class="sw" id="nOn" ${n.enabled ? 'checked' : ''}></label>
           <label class="row"><span>期日の前日に通知</span><input type="checkbox" class="sw" id="nPre" ${n.dayBefore ? 'checked' : ''} ${n.enabled ? '' : 'disabled'}></label>
+          <div class="row"><span>アラートの標準時刻</span><input type="time" class="input" id="aTime" value="${S.alertTime}" style="width:130px;padding:7px 10px"></div>
           <label class="row"><span>期日の当日に通知</span><input type="checkbox" class="sw" id="nDay" ${n.dayOf ? 'checked' : ''} ${n.enabled ? '' : 'disabled'}></label>
           <div class="row"><span class="k">通知の許可</span><span class="v">${notifStatus()}</span></div>
           <button class="row act" id="nTest"><span>テスト通知を送る</span><span class="v">›</span></button>
         </div>
-        <p class="help">アプリを開いたとき・画面に戻ったときに、明日／今日が期日のタスク（継続後の新しい期日を含む）をまとめて通知します。iPhoneでは Safari の共有ボタン →「ホーム画面に追加」で追加したアプリから通知を許可してください（iOS 16.4以降）。通知が使えない環境でも、ホーム画面で期限超過・今日・7日以内を確認できます。</p>
+        <p class="help">【アラート】仕事・プライベート・メモごとに日時を指定できます。アプリを開いている間は指定時刻ちょうどに、閉じている間は次にアプリを開いたときにお知らせします。アプリを閉じていても確実に鳴らしたい場合は、詳細画面の「iPhoneのカレンダーに登録」を使ってください。<br>【期日通知】アプリを開いたとき・画面に戻ったときに、明日／今日が期日のタスク（継続後の新しい期日を含む）をまとめて通知します。iPhoneでは Safari の共有ボタン →「ホーム画面に追加」で追加したアプリから通知を許可してください（iOS 16.4以降）。通知が使えない環境でも、ホーム画面で期限超過・今日・7日以内を確認できます。</p>
 
         <div class="bt-title">データ管理</div>
         <div class="box">
@@ -1146,7 +1185,7 @@ function openSettings() {
           ${hasSample ? `<button class="row act danger" id="dSample"><span>サンプルデータを削除</span></button>` : ''}
           <button class="row act danger" id="dReset"><span>すべてのデータを削除</span></button>
         </div>
-        <p class="help" style="text-align:center">MY TASK v1.0 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
+        <p class="help" style="text-align:center">MY TASK v1.1 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
       </div>`;
     const s = entry.sheet;
     $('.sh-body', s).scrollTop = scrollTop;
@@ -1162,6 +1201,7 @@ function openSettings() {
     };
     $('#nPre', s).onchange = e => { S.notify.dayBefore = e.target.checked; save(); };
     $('#nDay', s).onchange = e => { S.notify.dayOf = e.target.checked; save(); };
+    $('#aTime', s).onchange = e => { if (e.target.value) { S.alertTime = e.target.value; save(); } };
     $('#nTest', s).onclick = async () => {
       if (!('Notification' in window)) { toast('この環境では通知を利用できません'); return; }
       if (Notification.permission !== 'granted') { const p = await Notification.requestPermission(); if (p !== 'granted') { toast('通知が許可されていません'); draw(); return; } }
@@ -1226,14 +1266,14 @@ function restore(file) {
 const csvCell = v => { v = String(v ?? ''); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 const toCsv = rows => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 function exportCsv() {
-  const head = ['種別', '登録日', '内容', '分類', '担当者', '期日', '当初の期日', '優先順位', '状態', '完了日', '継続回数', '継続履歴', '備考'];
+  const head = ['種別', '登録日', '内容', '分類', '担当者', '期日', '当初の期日', '優先順位', '状態', '完了日', '継続回数', '継続履歴', '備考', 'アラート'];
   const rows = sortTasks(DB.tasks, 'created').reverse().map(t => [TYPE_LABEL[t.type], t.createdAt, t.content, t.category, t.assignee, t.due, originalDue(t), t.priority, t.status, t.completedAt,
-    contCount(t), t.continuations.map((c, i) => `${i + 1}回目(${c.date}) ${c.prevDue || 'なし'}→${c.newDue} 理由:${c.reason}`).join(' / '), t.note]);
+    contCount(t), t.continuations.map((c, i) => `${i + 1}回目(${c.date}) ${c.prevDue || 'なし'}→${c.newDue} 理由:${c.reason}`).join(' / '), t.note, (t.alertAt || '').replace('T', ' ')]);
   shareOrDownload(`mytask_tasks_${today().replace(/-/g, '')}.csv`, toCsv([head, ...rows]), 'text/csv');
 }
 function exportMemoCsv() {
-  const head = ['日付', '担当者', '内容', '分類', '状態', 'タスク化した日'];
-  const rows = [...DB.memos].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(m => [m.date, m.assignee, m.content, m.category, m.status, m.convertedAt]);
+  const head = ['日付', '担当者', '内容', '分類', '状態', 'タスク化した日', 'アラート'];
+  const rows = [...DB.memos].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(m => [m.date, m.assignee, m.content, m.category, m.status, m.convertedAt, (m.alertAt || '').replace('T', ' ')]);
   shareOrDownload(`mytask_memos_${today().replace(/-/g, '')}.csv`, toCsv([head, ...rows]), 'text/csv');
 }
 function openPrint() {
@@ -1294,6 +1334,123 @@ function checkNotifications() {
 }
 
 /* =========================================================
+   アラート（仕事・プライベート・メモ共通）
+   ========================================================= */
+function alertFieldHtml(val, withDue) {
+  const [d, t] = (val || '').split('T');
+  return `<div class="field"><div class="label">アラート<span class="hint">指定した日時にお知らせ</span></div>
+    <div class="alert-row"><input type="date" class="input" id="fAD" value="${d || ''}"><input type="time" class="input" id="fAT" value="${t || ''}"></div>
+    <div class="opts quick" id="fAQ"><button type="button" class="opt" data-a="h1">1時間後</button><button type="button" class="opt" data-a="tonight">今夜20時</button><button type="button" class="opt" data-a="tm">明日 ${DB.settings.alertTime}</button>${withDue ? '<button type="button" class="opt" data-a="dueprev">期日の前日</button><button type="button" class="opt" data-a="dueday">期日の当日</button>' : ''}<button type="button" class="opt" data-a="">なし</button></div></div>`;
+}
+function bindAlertField(s, getDue) {
+  const D = $('#fAD', s), T = $('#fAT', s);
+  $('#fAQ', s).addEventListener('click', e => {
+    const b = e.target.closest('[data-a]'); if (!b) return;
+    const v = quickAlert(b.dataset.a, getDue && getDue());
+    if (v === null) { toast('先に期日を設定してください'); return; }
+    const [d, t] = v.split('T'); D.value = d || ''; T.value = t || '';
+  });
+  D.addEventListener('change', () => { if (D.value && !T.value) T.value = DB.settings.alertTime; });
+}
+function quickAlert(k, due) {
+  const S = DB.settings, td = today();
+  if (!k) return '';
+  if (k === 'h1') { const d = new Date(Date.now() + 3600e3); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return `${ymd(d)}T${hm(d)}`; }
+  if (k === 'tonight') return (new Date().getHours() >= 20 ? addDays(td, 1) : td) + 'T20:00';
+  if (k === 'tm') return addDays(td, 1) + 'T' + S.alertTime;
+  if (!due) return null;
+  if (k === 'dueprev') return addDays(due, -1) + 'T' + S.alertTime;
+  if (k === 'dueday') return due + 'T' + S.alertTime;
+  return '';
+}
+function readAlert(s) { const d = $('#fAD', s).value, t = $('#fAT', s).value; if (!d && !t) return ''; return `${d || today()}T${t || DB.settings.alertTime}`; }
+function applyAlert(o, val) { if ((o.alertAt || '') !== (val || '')) { o.alertAt = val || ''; o.alertFired = false; o.alertAck = false; } }
+function bellChip(x) {
+  if (!x.alertAt || (x.alertFired && x.alertAck)) return '';
+  const rang = x.alertFired;
+  return `<span class="chip bell ${rang ? 'rang' : ''}">⏰ ${fmtAlert(x.alertAt)}${rang ? ' 通知済み' : ''}</span>`;
+}
+const calBtn = () => `<div class="box"><button class="row act" id="dCal"><span>📅 iPhoneのカレンダーに登録<br><span class="cal-hint">アプリを閉じていても指定時刻に通知されます</span></span><span class="v">›</span></button></div>`;
+function alertItems() {
+  return [...DB.tasks.filter(t => !isDone(t)).map(x => ({ kind: 'task', x })), ...DB.memos.map(x => ({ kind: 'memo', x }))].filter(o => o.x.alertAt);
+}
+const pendingAlerts = () => alertItems().filter(o => o.x.alertFired && !o.x.alertAck).sort((a, b) => a.x.alertAt.localeCompare(b.x.alertAt));
+const findItem = id => getTask(id) || getMemo(id);
+let alertTimer = null;
+function scheduleAlerts() {
+  clearTimeout(alertTimer);
+  const next = alertItems().filter(o => !o.x.alertFired).map(o => o.x.alertAt).sort()[0];
+  if (!next) return;
+  const ms = parseDT(next).getTime() - Date.now();
+  if (ms < 2e9) alertTimer = setTimeout(checkAlerts, Math.max(500, ms + 500));
+}
+function checkAlerts() {
+  const now = nowLocal();
+  const due = alertItems().filter(o => !o.x.alertFired && o.x.alertAt <= now);
+  if (due.length) {
+    due.forEach(o => o.x.alertFired = true);
+    if (DB.settings.notify.enabled && 'Notification' in window && Notification.permission === 'granted') {
+      due.forEach(o => showNotif(`⏰ ${o.kind === 'memo' ? '思いつきメモ' : TYPE_LABEL[o.x.type]}`, o.x.content, 'alert-' + o.x.id));
+    }
+    afterChange();
+    showAlertPopup();
+  } else scheduleAlerts();
+}
+function snoozeAlert(id, min) {
+  const x = findItem(id); if (!x) return;
+  const d = new Date(Date.now() + min * 60e3);
+  x.alertAt = `${ymd(d)}T${hm(d)}`; x.alertFired = false; x.alertAck = false;
+  afterChange(); toast(min >= 60 ? `${min / 60}時間後に再通知します` : `${min}分後に再通知します`);
+}
+function ackAlert(id) { const x = findItem(id); if (x) { x.alertAck = true; afterChange(); } }
+function ackAll() { pendingAlerts().forEach(o => o.x.alertAck = true); afterChange(); }
+let alertEntry = null;
+function showAlertPopup() {
+  if (alertEntry && sheets.includes(alertEntry)) { alertEntry.refresh(); return; }
+  const entry = alertEntry = openSheet('', { refresh: () => draw() });
+  function draw() {
+    const list = pendingAlerts();
+    if (!list.length) { closeSheet(entry.wrap); alertEntry = null; return; }
+    entry.sheet.innerHTML = head('<span class="hbtn"></span>', '⏰ アラート', '<button class="hbtn r" data-close>閉じる</button>') + `<div class="sh-body">${list.map(o => {
+      const x = o.x, cls = o.kind === 'memo' ? 'memo' : (x.type === 'work' ? 'work' : 'priv');
+      const lbl = o.kind === 'memo' ? '思いつきメモ' : TYPE_LABEL[x.type];
+      return `<div class="al-item" style="border-left-color:var(--${cls})"><div class="chips" style="margin:0 0 6px"><span class="chip ${cls}">${lbl}</span><span class="chip">${fmtAlert(x.alertAt)}</span>${o.kind === 'task' && x.due ? `<span class="chip ${isOverdue(x) ? 'red' : ''}">期日 ${fmtDate(x.due)}</span>` : ''}</div>
+        <div class="card-title">${esc(x.content)}</div>
+        <div class="al-btns"><button class="btn ghost sm" data-sz="10" data-id="${x.id}">10分後</button><button class="btn ghost sm" data-sz="60" data-id="${x.id}">1時間後</button>${o.kind === 'task' ? `<button class="btn green sm" data-fin="${x.id}">完了</button>` : ''}<button class="btn primary sm" data-ack="${x.id}" style="margin-left:auto">確認</button></div></div>`;
+    }).join('')}</div><div class="sh-foot"><button class="btn primary" id="alAll">すべて確認</button></div>`;
+    const s = entry.sheet;
+    $$('[data-sz]', s).forEach(b => b.onclick = () => snoozeAlert(b.dataset.id, +b.dataset.sz));
+    $$('[data-ack]', s).forEach(b => b.onclick = () => ackAlert(b.dataset.ack));
+    $$('[data-fin]', s).forEach(b => b.onclick = () => completeTask(b.dataset.fin));
+    $('#alAll', s).onclick = ackAll;
+  }
+  draw();
+}
+function addToCalendar(x, kind) {
+  if (!x.alertAt) return;
+  const st = parseDT(x.alertAt), en = new Date(st.getTime() + 15 * 60e3);
+  const f = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  const ie = v => String(v || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
+  const label = kind === 'memo' ? 'メモ' : TYPE_LABEL[x.type];
+  const sum = `[${label}] ${x.content.split('\n')[0]}`;
+  const desc = [x.content, x.due ? `期日：${fmtDateFull(x.due)}` : '', x.note ? `備考：${x.note}` : '', 'MY TASKから登録'].filter(Boolean).join('\n');
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MY TASK//JA', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    `UID:${x.id}-${f(st)}@mytask`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`,
+    `DTSTART:${f(st)}`, `DTEND:${f(en)}`, `SUMMARY:${ie(sum)}`, `DESCRIPTION:${ie(desc)}`,
+    'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${ie(sum)}`, 'TRIGGER:PT0S', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  const a = document.createElement('a');
+  if (ios) {
+    a.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+  } else {
+    const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+    a.href = url; a.download = 'mytask_alert.ics';
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* =========================================================
    サンプルデータ
    ========================================================= */
 function addSamples() {
@@ -1338,8 +1495,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   if (today() !== lastDay) { lastDay = today(); render(); }
   checkNotifications();
+  checkAlerts();
 });
 setInterval(() => { if (today() !== lastDay) { lastDay = today(); render(); } checkNotifications(); }, 10 * 60 * 1000);
+setInterval(checkAlerts, 30 * 1000);
 
 load();
 render();
@@ -1348,6 +1507,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
 setTimeout(checkNotifications, 1500);
+setTimeout(checkAlerts, 800);
 </script>
 </body>
 </html>
