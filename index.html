@@ -1675,7 +1675,9 @@ setInterval(checkAlerts, 30 * 1000);
 load();
 render();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => { });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => { r.update().catch(() => { }); document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update().catch(() => { }); }); }).catch(() => { });
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloaded || sheets.length) return; reloaded = true; location.reload(); });
 }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
 setTimeout(checkNotifications, 1500);
