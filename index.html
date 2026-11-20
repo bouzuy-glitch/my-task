@@ -21,7 +21,7 @@
   --done:#38A169; --done-l:#E8F6EE;
   --red:#D9443A; --red-l:#FDECEA;
   --amber:#B97A06; --amber-l:#FFF4D9;
-  --navy:#22303F;
+  --navy:#22303F; --wait:#7B4FC9; --wait-l:#F1EBFB;
   --r:14px; --tab-h:58px;
   --sb:env(safe-area-inset-bottom,0px); --st:env(safe-area-inset-top,0px);
 }
@@ -62,7 +62,11 @@ main{padding:2px 14px calc(var(--tab-h) + var(--sb) + 96px);max-width:760px;marg
 .hero-d{font-size:28px;font-weight:800;letter-spacing:.01em}
 .hero-d small{font-size:18px;font-weight:700;margin-left:2px}
 .hero-y{color:var(--sub);font-size:14px;font-weight:600}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 6px}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:0 0 6px}
+.stat.purple b{color:var(--wait)}
+.chip.wait{background:var(--wait-l);color:var(--wait);font-weight:800}
+.dot.purple{background:var(--wait)}
+.btn.wait{background:var(--wait-l);color:var(--wait);border:1px solid #D9CCF2}
 .stat{background:#fff;border-radius:12px;padding:10px 4px 8px;text-align:center;box-shadow:0 1px 2px rgba(16,24,40,.05)}
 .stat b{display:block;font-size:24px;font-weight:800;line-height:1.15}
 .stat span{font-size:11.5px;color:var(--sub);font-weight:600}
@@ -381,6 +385,9 @@ const getMemo = id => DB.memos.find(m => m.id === id);
 /* タスク判定 */
 const isDone = t => t.status === '完了';
 const isOverdue = t => !isDone(t) && !!t.due && t.due < today();
+const isWaiting = t => t.status === '報告待ち';
+const waitDays = t => t.waitSince ? diffDays(t.waitSince, today()) : 0;
+const waitLabel = t => { if (!t.waitSince) return ''; const n = waitDays(t); return n > 0 ? `${n}日経過` : '今日から'; };
 const contCount = t => (t.continuations || []).length;
 const originalDue = t => contCount(t) ? t.continuations[0].prevDue : t.due;
 const prioRank = p => { const i = DB.settings.priorities.indexOf(p); return i < 0 ? 99 : i; };
@@ -517,6 +524,7 @@ function taskCard(t, { showType = false, mode = '' } = {}) {
   if (t.type === 'work' && (t.instructions || []).length) c.push(`<span class="chip work">再指示${t.instructions.length}回</span>`);
   if (mode !== 'done') c.push(prioChip(t.priority));
   if (n) c.push(`<span class="chip amber">継続${n}回</span>`);
+  if (isWaiting(t)) c.push(`<span class="chip wait">報告待ち${t.waitSince ? ' ' + waitLabel(t) : ''}${t.waitFrom ? '（' + esc(t.waitFrom) + '）' : ''}</span>`);
   if (mode !== 'done') c.push(bellChip(t));
   return `<div class="card task ${t.type} ${done ? 'done' : ''} ${ov ? 'overdue' : ''}" data-task="${t.id}">
     <button class="check" data-check="${t.id}" aria-label="${done ? '未完了に戻す' : '完了にする'}"><span>${ICON.check}</span></button>
@@ -571,7 +579,10 @@ function renderHome() {
   const todays = sortTasks(active.filter(t => t.due === td), 'prio');
   const week = sortTasks(active.filter(t => t.due && t.due > td && t.due <= addDays(td, 7)), 'due');
   const cont = active.filter(t => t.status === '継続');
+  const waiting = sortTasks(active.filter(isWaiting), 'created');
   const used = new Set([...overdue, ...todays, ...week].map(t => t.id));
+  const waitRest = waiting.filter(t => !used.has(t.id)).sort((a, b) => (a.waitSince || '').localeCompare(b.waitSince || ''));
+  waitRest.forEach(t => used.add(t.id));
   const contRest = sortTasks(cont.filter(t => !used.has(t.id)), 'due');
   contRest.forEach(t => used.add(t.id));
   const rest = sortTasks(active.filter(t => !used.has(t.id)), 'prio');
@@ -579,7 +590,7 @@ function renderHome() {
 
   const stat = (n, label, cls) => `<div class="stat ${n ? cls : 'zero'}"><b>${n}</b><span>${label}</span></div>`;
   let h = `<div class="hero"><div class="hero-d">${d.getMonth() + 1}月${d.getDate()}日<small>（${WD[d.getDay()]}）</small></div><div class="hero-y">${d.getFullYear()}年</div></div>
-    <div class="stats">${stat(active.length, '未完了', 'blue')}${stat(overdue.length, '期限超過', 'red')}${stat(todays.length, '今日', '')}${stat(cont.length, '継続中', 'amber')}</div>`;
+    <div class="stats">${stat(active.length, '未完了', 'blue')}${stat(overdue.length, '期限超過', 'red')}${stat(todays.length, '今日', '')}${stat(cont.length, '継続中', 'amber')}${stat(waiting.length, '報告待ち', 'purple')}</div>`;
 
   if (!DB.settings.welcomed && !DB.tasks.length && !DB.memos.length) {
     h += `<div class="welcome"><h3>ようこそ</h3><p>右下の「＋追加」から仕事・プライベート・思いつきメモを登録できます。<br>まず操作感を試したい場合は、サンプルデータを入れてみてください（設定からまとめて削除できます）。</p>
@@ -603,6 +614,7 @@ function renderHome() {
   h += sec('今日が期日', 'navy', todays, '今日が期日のタスクはありません');
   h += sec('今後7日以内', 'blue', week);
   h += sec('継続中', 'amber', contRest);
+  h += sec('報告待ち', 'purple', waitRest);
   if (memos.length) {
     h += `<div class="sec"><span class="dot orange"></span>未処理の思いつきメモ<span class="cnt">${memos.length}</span><button class="more" onclick="switchTab('memo')">すべて見る</button></div>` + memos.slice(0, 3).map(memoCard).join('');
   }
@@ -615,7 +627,7 @@ function renderHome() {
 
 /* ---------- 仕事 / プライベート ---------- */
 const FILTERS = {
-  work: [['active', '未完了'], ['all', 'すべて'], ['cont', '継続'], ['overdue', '期限超過'], ['done', '完了'], ['byAssignee', '担当者別'], ['byIns', '指示先別'], ['byCat', '分類別']],
+  work: [['active', '未完了'], ['all', 'すべて'], ['cont', '継続'], ['wait', '報告待ち'], ['overdue', '期限超過'], ['done', '完了'], ['byAssignee', '担当者別'], ['byIns', '指示先別'], ['byCat', '分類別']],
   private: [['active', '未完了'], ['today', '今日'], ['week', '今週'], ['shop', '買うもの'], ['overdue', '期限超過'], ['done', '完了'], ['all', 'すべて']],
 };
 function filterTasks(type, f) {
@@ -623,6 +635,7 @@ function filterTasks(type, f) {
   switch (f) {
     case 'all': return all;
     case 'cont': return all.filter(t => t.status === '継続');
+    case 'wait': return all.filter(isWaiting);
     case 'overdue': return all.filter(isOverdue);
     case 'done': return all.filter(isDone);
     case 'today': return all.filter(t => !isDone(t) && t.due === td);
@@ -756,6 +769,7 @@ function newMemo(o) {
 function completeTask(id) {
   const t = getTask(id); if (!t) return;
   const prev = { status: t.status, completedAt: t.completedAt, completedTs: t.completedTs };
+  if (isWaiting(t)) closeWaitLog(t, '完了');
   t.status = '完了'; t.completedAt = today(); t.completedTs = Date.now();
   afterChange();
   toast('完了にしました', '元に戻す', () => { Object.assign(t, prev); afterChange(); });
@@ -795,8 +809,9 @@ function openTaskDetail(id) {
     const t = getTask(id);
     if (!t) { closeSheet(entry.wrap); return; }
     const isWork = t.type === 'work', n = contCount(t), ov = isOverdue(t), done = isDone(t);
-    const status = done ? '<span class="chip green">完了</span>' : t.status === '継続' ? `<span class="chip amber">継続中（${n}回目）</span>` : '<span class="chip">未完了</span>';
+    const status = done ? '<span class="chip green">完了</span>' : isWaiting(t) ? `<span class="chip wait">報告待ち${t.waitSince ? '（' + waitLabel(t) + '）' : ''}</span>` : t.status === '継続' ? `<span class="chip amber">継続中（${n}回目）</span>` : '<span class="chip">未完了</span>';
     const rows = [
+      ...(isWaiting(t) ? [['報告待ち開始', t.waitSince ? fmtDateFull(t.waitSince) : '—'], ['報告元', esc(t.waitFrom) || '—'], ...(t.waitNote ? [['報告待ちメモ', esc(t.waitNote)]] : [])] : []),
       ['登録日', fmtDateFull(t.createdAt)],
       ['分類', esc(t.category) || '—'],
       ...(isWork ? [['担当者', esc(t.assignee) || '—'], ['指示日', t.instructedAt ? fmtDateFull(t.instructedAt) : '—'], ...((t.instructions || []).length ? [['最終指示日', fmtDateFull(t.lastInstructedAt)], ['再指示回数', t.instructions.length + '回']] : []), ['指示先', esc(t.instructedTo) || '—']] : []),
@@ -817,6 +832,8 @@ function openTaskDetail(id) {
           <div class="tl-due">${c.prevDue ? fmtDate(c.prevDue) : '期日なし'} → ${fmtDate(c.newDue)}</div><div class="tl-r">理由：${esc(c.reason)}</div></div>`).join('')}</div>` : ''}
         ${isWork && (t.instructions || []).length ? `<div class="bt-title">指示・期日の履歴</div><div class="tl ins">${t.instructedAt ? `<div class="tl-item"><div class="tl-h">最初の指示 ・ ${fmtDate(t.instructedAt)}</div><div class="tl-due">期日 ${t.instructions[0].prevDue ? fmtDate(t.instructions[0].prevDue) : 'なし'}</div></div>` : ''}${t.instructions.map((c, i) => `<div class="tl-item"><div class="tl-h">${i + 1}回目の再指示 ・ ${fmtDate(c.date)}${c.to ? ' → ' + esc(c.to) : ''}</div>
           <div class="tl-due">期日 ${c.prevDue ? fmtDate(c.prevDue) : 'なし'} → ${fmtDate(c.newDue)}</div>${c.note ? `<div class="tl-r">${esc(c.note)}</div>` : ''}</div>`).join('')}</div>` : ''}
+        ${(t.waitLog || []).length ? `<div class="bt-title">報告待ちの記録</div><div class="tl ins">${t.waitLog.map(w => `<div class="tl-item"><div class="tl-h">${fmtDate(w.date)} 報告待ちに${w.from ? ' ・ ' + esc(w.from) + 'から' : ''}</div>${w.end ? `<div class="tl-due">${fmtDate(w.end)} ${esc(w.result || '解除')}（${diffDays(w.date, w.end)}日）</div>` : '<div class="tl-due">待機中</div>'}${w.note ? `<div class="tl-r">${esc(w.note)}</div>` : ''}</div>`).join('')}</div>` : ''}
+        ${isWork && !done && !isWaiting(t) ? `<div class="box"><button class="row act" id="dWait"><span>📨 報告待ちにする<br><span class="cal-hint">指示・確認のあと、相手からの報告を待つ状態にします</span></span><span class="v">›</span></button></div>` : ''}
         ${isWork && !done ? `<div class="box"><button class="row act" id="dReins"><span>📝 再指示・期日を追加<br><span class="cal-hint">指示した日と改めての期日を記録します</span></span><span class="v">›</span></button></div>` : ''}
         ${t.alertAt && !done ? calBtn() : ''}
         ${memo ? `<button class="linkbtn" data-memo="${memo.id}">元の思いつきメモを見る ›</button>` : ''}
@@ -824,6 +841,7 @@ function openTaskDetail(id) {
       </div>
       <div class="sh-foot" style="flex-wrap:wrap"><button class="btn ghost edit-wide" id="dEdit2">✏️ 内容を修正する</button>${done
         ? `<button class="btn ghost" id="dReopen">未完了に戻す</button>`
+        : isWaiting(t) ? `<button class="btn ghost" id="dUnwait">未完了に戻す</button><button class="btn green" id="dWaitDone">${ICON.check}報告あり・完了</button>`
         : `${isWork ? `<button class="btn amber" id="dCont">継続する</button>` : ''}<button class="btn green" id="dDone">${ICON.check}完了にする</button>`}</div>`;
     const s = entry.sheet;
     $('#dEdit', s).onclick = $('#dEdit2', s).onclick = () => openTaskForm({ id });
@@ -833,8 +851,60 @@ function openTaskDetail(id) {
     if ($('#dCont', s)) $('#dCont', s).onclick = () => openTaskForm({ id, cont: true });
     if ($('#dCal', s)) $('#dCal', s).onclick = () => addToCalendar(t, 'task');
     if ($('#dReins', s)) $('#dReins', s).onclick = () => openReinstruct(id);
+    if ($('#dWait', s)) $('#dWait', s).onclick = () => openWait(id);
+    if ($('#dUnwait', s)) $('#dUnwait', s).onclick = () => endWait(id, '未完了');
+    if ($('#dWaitDone', s)) $('#dWaitDone', s).onclick = () => { closeSheet(entry.wrap); endWait(id, '完了'); };
   }
   draw();
+}
+
+/* =========================================================
+   報告待ち（仕事）
+   ========================================================= */
+function startWaitLog(t, date, from, note) {
+  if (!Array.isArray(t.waitLog)) t.waitLog = [];
+  t.waitLog.push({ date, from, note, prevDue: t.due || '' });
+  t.waitSince = date; t.waitFrom = from; t.waitNote = note;
+}
+function closeWaitLog(t, result) {
+  const w = (t.waitLog || [])[t.waitLog ? t.waitLog.length - 1 : 0];
+  if (w && !w.end) { w.end = today(); w.result = result; }
+}
+function endWait(id, to) {
+  const t = getTask(id); if (!t) return;
+  closeWaitLog(t, to === '完了' ? '報告あり・完了' : '未完了に戻す');
+  if (to === '完了') { completeTask(id); return; }
+  t.status = '未完了'; afterChange(); toast('未完了に戻しました');
+}
+function openWait(id) {
+  const t = getTask(id); if (!t) return;
+  const S = DB.settings;
+  const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', '報告待ちにする', '') + `
+    <div class="sh-body" style="--acc:var(--wait)">
+      <div class="d-content" style="font-size:16px">${esc(t.content)}</div>
+      <div class="field"><div class="label">報告待ちにした日</div><input type="date" class="input" id="wDate" value="${today()}">
+        <div class="opts quick" id="wDateQ"><button type="button" class="opt" data-d="0">今日</button><button type="button" class="opt" data-d="-1">昨日</button></div></div>
+      <div class="field"><div class="label">報告元<span class="hint">誰からの報告を待つか</span></div>
+        <div class="free-in"><input class="input" id="wFrom" value="${esc(t.instructedTo || '')}" placeholder="例）田中" autocomplete="off"><button type="button" class="clr" data-clr="wFrom">×</button></div>
+        ${nameChips('wFromOpts', S.assignees.filter(a => a !== '自分'), t.instructedTo || '')}</div>
+      <div class="field"><div class="label">期日</div><div class="seg" id="wDue">${optList(['期日なしにする', '今の期日を残す'], '期日なしにする', '')}</div>
+        <div class="help" style="margin:6px 2px 0">${t.due ? `今の期日：${fmtDateFull(t.due)}` : '今は期日なし'}</div></div>
+      <div class="field"><div class="label">メモ<span class="hint">任意</span></div><textarea class="textarea" id="wNote" rows="2" placeholder="例）見積の回答待ち"></textarea></div>
+    </div>
+    <div class="sh-foot"><button class="btn primary" id="wSave" style="background:var(--wait)">報告待ちにする</button></div>`);
+  const s = entry.sheet, wFrom = $('#wFrom', s);
+  $('#wDateQ', s).addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (b) $('#wDate', s).value = addDays(today(), +b.dataset.d); });
+  bindPick($('#wFromOpts', s), v => wFrom.value = v, true);
+  bindPick($('#wDue', s));
+  $('[data-clr]', s).onclick = () => { wFrom.value = ''; wFrom.focus(); };
+  $('#wSave', s).onclick = () => {
+    const from = wFrom.value.trim();
+    startWaitLog(t, $('#wDate', s).value || today(), from, $('#wNote', s).value.trim());
+    if (picked($('#wDue', s)) === '期日なしにする') t.due = '';
+    t.status = '報告待ち';
+    if (from && !/[、,]/.test(from) && !S.assignees.includes(from)) S.assignees.push(from);
+    closeSheet(entry.wrap); afterChange(); toast('報告待ちにしました');
+  };
 }
 
 /* =========================================================
@@ -895,7 +965,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
   let status = cont ? '継続' : status0;
   const contRequired = () => cont || status0 !== '継続';
   const acc = isWork ? 'var(--work)' : 'var(--priv)';
-  const statuses = isWork ? ['未完了', '継続', '完了'] : ['未完了', '完了'];
+  const statuses = isWork ? ['未完了', '継続', '報告待ち', '完了'] : ['未完了', '完了'];
   const title = cont ? '継続する' : t ? '修正' : (isWork ? '仕事を追加' : 'プライベートを追加');
 
   const entry = openSheet(head('<button class="hbtn l" data-close>キャンセル</button>', title, '') + `
@@ -992,6 +1062,7 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
       toast(memoId ? 'メモをタスクにしました' : '登録しました');
       return;
     }
+    if (status === '継続' && isWaiting(t)) closeWaitLog(t, '継続へ');
     if (status === '継続') {
       const reason = $('#fReason', s).value.trim(), nd = $('#fNewDue', s).value;
       if (contRequired() || reason || nd) {
@@ -1007,11 +1078,18 @@ function openTaskForm({ type, id, memoId, prefill = {}, cont = false } = {}) {
       }
       Object.assign(t, vals, { due: fDue.value, status: '継続', completedAt: null, completedTs: null });
       applyAlert(t, alertVal);
+    } else if (status === '報告待ち') {
+      const was = isWaiting(t);
+      Object.assign(t, vals, { due: fDue.value, status: '報告待ち', completedAt: null, completedTs: null });
+      if (!was) startWaitLog(t, today(), t.instructedTo || '', '');
+      applyAlert(t, alertVal);
     } else if (status === '完了') {
+      if (isWaiting(t)) closeWaitLog(t, '完了');
       if (t.status !== '完了') { t.completedAt = today(); t.completedTs = Date.now(); }
       Object.assign(t, vals, { due: fDue.value, status: '完了' });
       applyAlert(t, alertVal);
     } else {
+      if (isWaiting(t)) closeWaitLog(t, '未完了に戻す');
       Object.assign(t, vals, { due: fDue.value, status: '未完了', completedAt: null, completedTs: null });
       applyAlert(t, alertVal);
     }
@@ -1135,7 +1213,7 @@ function openSearch() {
     <div class="sh-body">
       <div class="search" style="margin-bottom:10px">${ICON.search}<input class="search-in" id="sKw" type="search" placeholder="キーワード（内容・備考・理由など）"></div>
       <div class="field"><div class="seg" id="sType">${optList(['すべて', '仕事', 'プライベート'], 'すべて', '')}</div></div>
-      <div class="field"><div class="opts small" id="sStatus">${optList(['すべて', '未完了', '継続', '完了', '期限超過'], 'すべて')}</div></div>
+      <div class="field"><div class="opts small" id="sStatus">${optList(['すべて', '未完了', '継続', '報告待ち', '完了', '期限超過'], 'すべて')}</div></div>
       <details class="more"><summary>詳細条件（分類・担当者・日付・並び替え）</summary>
         <div class="field"><div class="label">分類</div><select class="select" id="sCat"><option value="">すべて</option>${allCats.map(c => `<option>${esc(c)}</option>`).join('')}</select></div>
         <div class="field"><div class="label">担当者</div><select class="select" id="sAsg"><option value="">すべて</option>${allAsg.map(c => `<option>${esc(c)}</option>`).join('')}</select></div>
@@ -1268,7 +1346,7 @@ function openSettings() {
           ${hasSample ? `<button class="row act danger" id="dSample"><span>サンプルデータを削除</span></button>` : ''}
           <button class="row act danger" id="dReset"><span>すべてのデータを削除</span></button>
         </div>
-        <p class="help" style="text-align:center">MY TASK v1.4 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
+        <p class="help" style="text-align:center">MY TASK v1.5 ・ タスク${DB.tasks.length}件 ／ メモ${DB.memos.length}件</p>
       </div>`;
     const s = entry.sheet;
     $('.sh-body', s).scrollTop = scrollTop;
@@ -1352,8 +1430,8 @@ function restore(file) {
 const csvCell = v => { v = String(v ?? ''); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 const toCsv = rows => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 function exportCsv() {
-  const head = ['種別', '登録日', '内容', '分類', '担当者', '指示日', '指示先', '期日', '当初の期日', '優先順位', '状態', '完了日', '継続回数', '継続履歴', '再指示履歴', '備考', 'アラート'];
-  const rows = sortTasks(DB.tasks, 'created').reverse().map(t => [TYPE_LABEL[t.type], t.createdAt, t.content, t.category, t.assignee, t.instructedAt || '', t.instructedTo || '', t.due, originalDue(t), t.priority, t.status, t.completedAt,
+  const head = ['種別', '登録日', '内容', '分類', '担当者', '指示日', '指示先', '期日', '当初の期日', '優先順位', '状態', '報告待ち開始', '報告元', '完了日', '継続回数', '継続履歴', '再指示履歴', '備考', 'アラート'];
+  const rows = sortTasks(DB.tasks, 'created').reverse().map(t => [TYPE_LABEL[t.type], t.createdAt, t.content, t.category, t.assignee, t.instructedAt || '', t.instructedTo || '', t.due, originalDue(t), t.priority, t.status, isWaiting(t) ? t.waitSince || '' : '', isWaiting(t) ? t.waitFrom || '' : '', t.completedAt,
     contCount(t), t.continuations.map((c, i) => `${i + 1}回目(${c.date}) ${c.prevDue || 'なし'}→${c.newDue} 理由:${c.reason}`).join(' / '), (t.instructions || []).map((c, i) => `${i + 1}回目(指示日${c.date}${c.to ? ' →' + c.to : ''}) 期日${c.prevDue || 'なし'}→${c.newDue}${c.note ? ' ' + c.note : ''}`).join(' / '), t.note, (t.alertAt || '').replace('T', ' ')]);
   shareOrDownload(`mytask_tasks_${today().replace(/-/g, '')}.csv`, toCsv([head, ...rows]), 'text/csv');
 }
